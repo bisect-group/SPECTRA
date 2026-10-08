@@ -43,3 +43,5 @@ gapFilledAGORA_DB/tsne_mat_new_rxns.csv
 hCOM_community/CommunityGapFilling/Carveme_results
 hCOM_community/CommunityGapFilling/old_results_with_carveme_based_draftModelBuildingVisualisations/Results/tsne_mat_all_rxns.csv
 Visualisations/Results/tsne_mat_new_rxns.csv
+
+.DS_Store
