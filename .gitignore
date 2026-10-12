@@ -56,3 +56,5 @@ gapFilledAGORA_DB/protein_sequences_test/
 gapFilledAGORA_DB/test_links.py
 
 Verify_new_reactions_AGORA_using_DL/results/
+
+.DS_Store
