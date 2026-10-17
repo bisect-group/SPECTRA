@@ -16,7 +16,13 @@
 
 # Overview
 
-SPECTRA is a unified, scalable framework for reconstructing metabolic models from multi-omics data. It integrates diverse optimization strategies (linear and mixed-integer linear programming) to extract metabolic networks at multiple biological scales-from minimal reactomes and context-specific models (CSMs) to microbial community models and multi-tissue models. 
+SPECTRA is a unified, scalable framework for reconstructing metabolic models from multi-omics data. It integrates diverse optimization strategies (linear and mixed-integer linear programming) to extract metabolic networks at multiple biological scales-from minimal reactomes and context-specific models (CSMs) to microbial community models and multi-tissue models.
+
+> **This branch holds the manuscript material**, not the SPECTRA source code.
+> The package itself — `spectraCC`, `spectraME`, `spectraCCME` and the
+> formulations — lives on
+> [`main`](https://github.com/bisect-group/SPECTRA/tree/main). You need both:
+> the source from `main`, and the scripts and data here.
 
 # Installation & Setup
 
@@ -38,10 +44,22 @@ All the simulations done in this work were implemented with the COBRA toolbox 3.
 
 ### Installation
 
+Clone the source code and this branch side by side:
+
 ```bash
 git clone https://github.com/bisect-group/SPECTRA.git
-cd SPECTRA
+git clone -b paper_codes https://github.com/bisect-group/SPECTRA.git SPECTRA-paper
 ```
+
+Then put the SPECTRA source on the MATLAB path before running anything here:
+
+```matlab
+addpath(genpath('path/to/SPECTRA/src'))
+cd path/to/SPECTRA-paper
+```
+
+The scripts on this branch call the source functions directly, so they fail
+with an undefined-function error if that path is not set.
 
 # Reproducing Manuscript Results
 
@@ -102,66 +120,8 @@ Contains Python Notebooks (`.ipynb`) and MATLAB .mat files that were used to plo
 
 ---
 
-# Quick Start Guide
+# Using SPECTRA on your own data
 
-## Step 1: Prepare The Inputs
-
-The omics data can be used to derive the following three inputs to SPECTRA.
-
-| Parameter | Purpose |
-|---|---|
-| **Core reactions** | These reactions will be present in the final model |
-| **Weights** | Numbers that determine the relative importance of the reactions to be included (or excluded) |
-| **Box contraints** | Lower and upper bounds to the reactions in the universal model|
-
-The following code demonstrates the same for a toy network model:
-
-```MATLAB
-  % loading the universal model
-  model = three_pathway_toy_model(); % A toy model with eight metabolites and eleven reactions
-
-  % defining the box constraints 
-  model.ub(:) = 10; 
-  model.ub([1,6,9]) = 1; % constraining the media reactions
-
-  % defining the core reactions
-  core = 5; % the reaction indices of the core reactions
-
-  % defining the weights of the reactions (For this example, we are using tradeOff as the network inference method)
-  weights = [1,1,-2,-1,1,1,2,-1,-2,0,1]'; % Same size as the number of reactions
-```
-
-## Step 2: Choose The Network Inference Formulation
-
-| Formulation | Objective | Use Case | Input Weights |
-|---|---|---|---|
-| **minNetLP** | Minimize total flux | Extracting minimal networks preserving core reactions | Non-negative weights |
-| **minNetMILP** | Minimize reaction count |  Extracting minimal networks preserving core reactions | Non-negative weights |
-| **minNetDC** | Cardinality minimization |  Extracting minimal networks preserving core reactions | Non-negative weights |
-| **tradeOff** | Maximize weighted reactions | Balancing positive vs. negative evidence | Any real values |
-| **optimBiomass** | Maximize biomass + minimize flux | Biological growth optimization | Non-negative weights |
-
-## Step 3: Model reconstruction
-
-```matlab
-% For flux consistent universal models
-consType = 'stoichiometry'; % to use stoichiometric constraints or topology constraints
-probType = 'tradeOff'; % network inference method
-altSolMethod = {}; % method to obtain alternate solutions
-nSol = 1; % number of alternate solutions required
-solveTime = 7200; % maximum time for solving MILP problem
-tol = 1e-5; % defining the small positive number
-[Model_tradeOff] = spectraME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
-
-% For flux inconsistent universal models (simultaneous consistency checking + extraction)
-[Model_tradeOff] = spectraCCME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
-```
-
-## Step 4: To Generate Alternative Solutions
-
-```matlab
-  % Pathway exclusion (for MILP formulations like tradeOff and minNetMILP)
-  altSolMethod = 'pathwayExclusion'; % method to obtain alternate solutions
-  nSol = 5; % number of alternate solutions required
-  [Model_tradeoff_altSols] = spectraME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
-```
+This branch reproduces the manuscript. To apply SPECTRA to your own models,
+see the quick start guide on
+[`main`](https://github.com/bisect-group/SPECTRA/tree/main#quick-start-guide).
