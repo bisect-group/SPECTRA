@@ -1,6 +1,6 @@
-function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType)
+function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed)
 % USAGE:
-% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType)
+% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed)
 %
 % INPUTS:
 %    model: COBRA model structure.
@@ -12,6 +12,10 @@ function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType)
 %    consistencyType: Type of consistency check to make. 'stoichiometry'
 %                     assumes steadystate condition and 'topology' assumes accumulation
 %                     condition. (Default: 'stoichiometry')
+%    seed:            Seed for the random objective coefficients, making the
+%                     result reproducible across runs. Leave it out to draw
+%                     them unseeded, as every earlier version of this
+%                     function did. (Default: none)
 %
 % OUTPUTS:
 %    ConsReacIDS: Reaction IDs corresponding to reactions in the input
@@ -25,7 +29,12 @@ if ~exist('tol', 'var') || isempty(tol)
     tol =1e-4;    
 end
 if ~exist('consistencyType', 'var') || isempty(consistencyType)
-    consistencyType = 'stoichiometry';    
+    consistencyType = 'stoichiometry';
+end
+% Seeding is opt-in. Without a seed the objective coefficients are drawn
+% exactly as before, so published results stay reproducible.
+if exist('seed', 'var') && ~isempty(seed)
+    rng(seed);
 end
 
 [~,n] = size(model.S);
@@ -45,6 +54,10 @@ if strcmp(consistencyType,'stoichiometry')
     steadystate = 1;
 elseif strcmp(consistencyType,'topology')
     steadystate = 0;
+else
+    error('spectraCC:badConsistencyType', ...
+        ['consistencyType must be ''stoichiometry'' or ''topology'', ' ...
+         'not ''%s''.'], consistencyType);
 end
 
 while sum(temp_core)~=sum(prev_rxns)

@@ -1,6 +1,6 @@
-function [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols)
+function [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed)
 % USAGE:
-%   [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols)
+%   [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed)
 %
 % INPUTS:
 %   model:    COBRA model structure. The model has to be a consistent model
@@ -28,6 +28,10 @@ function [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSol
 %                 or not (Default: 0 (doesn't remove the unused genes))
 %   prevSols:     A cell of previously obtained solutions that should not
 %                 be a part of any new solutions (works only for MILP probType)
+%   seed:         Seed for the random coefficients used by the direction
+%                 phase, making the result reproducible across runs. Leave
+%                 it out to draw them unseeded, as every earlier version of
+%                 this function did. (Default: none)
 %
 % OUTPUTS:
 %   Model:     The consistent model with no blocked reactions and has
@@ -54,11 +58,19 @@ end
 if ~exist('remGene', 'var') || isempty(remGene)
     remGene=0;  
 end
-if ~exist('prevSols', 'var') || isempty(remGene)
-    prevSols={};  
+if ~exist('prevSols', 'var') || isempty(prevSols)
+    prevSols={};
 end
 if ~exist('consType', 'var') || isempty(consType)
-    consType='stoichiometry';  
+    consType='stoichiometry';
+end
+if ~exist('altSolMethod', 'var') || isempty(altSolMethod)
+    altSolMethod='coreDirection';
+end
+% Seeding is opt-in. Without a seed the coefficients are drawn exactly as
+% before, so published results stay reproducible.
+if exist('seed', 'var') && ~isempty(seed)
+    rng(seed);
 end
 
 [~,n] = size(model.S);
@@ -80,6 +92,10 @@ if strcmp(consType,'stoichiometry')
     steadystate = 1;
 elseif strcmp(consType,'topology')
     steadystate = 0;
+else
+    error('spectraME:badConsType', ...
+        ['consType must be ''stoichiometry'' or ''topology'', ' ...
+         'not ''%s''.'], consType);
 end
 
 while any(temp_core)

@@ -141,6 +141,8 @@ MILPproblem.osense=-1; % maximize
 MILPproblem.vartype = [repmat('C',n,1);repmat('B',n_+(2*n_rev),1)];
 MILPproblem.csense = [csenseeq1; csenseeq2; csenseineq1; csenseineq2; csenseineq3; csenseineq4; csenseineq5];
 changeCobraSolverParams('MILP', 'feasTol', 1e-9);
+fprintf(['tradeOff: MILP feasTol set to 1e-9. This is a global COBRA ' ...
+         'setting and stays in effect after this function returns.\n']);
 if exist('x0', 'var')&&~isempty(x0)
 
     MILPproblem.x0  = [x0;abs(x0(dir0))>1e-12;x0(dir0&model.rev)>1e-12;x0(dir0&model.rev)<-1e-12]; 

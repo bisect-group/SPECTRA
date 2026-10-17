@@ -1,6 +1,6 @@
-function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene)
+function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed)
 % USAGE: 
-%   [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene)
+%   [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed)
 %
 % INPUTS:
 %     model:    COBRA model structure.
@@ -25,6 +25,10 @@ function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,w
 %     solveTime:    Maximum runtime for solving a MILP problem (Default: 7200s)
 %     remGene:      Bool value indicating whether to remove the unused genes
 %                   or not (Default: 0 (doesn't remove the unused genes))
+%     seed:         Seed for the random coefficients, making the result
+%                   reproducible across runs. Leave it out to draw them
+%                   unseeded, as every earlier version of this function did.
+%                   (Default: none)
 %
 % OUTPUTS:
 %     Model:           The consistent model (If nSol ==1). A cell
@@ -51,7 +55,15 @@ if ~exist('remGene', 'var') || isempty(remGene)
     remGene=0;  
 end
 if ~exist('consType', 'var') || isempty(consType)
-    consType='stoichiometry';  
+    consType='stoichiometry';
+end
+if ~exist('altSolMethod', 'var') || isempty(altSolMethod)
+    altSolMethod='coreDirection';
+end
+% Seeding is opt-in. Seed once here and let the spectraME call below draw
+% from the same stream, so its alternative solutions still differ.
+if exist('seed', 'var') && ~isempty(seed)
+    rng(seed);
 end
 
 [~,n] = size(model.S); % number of metabolites and reactions
@@ -73,6 +85,10 @@ if strcmp(consType,'stoichiometry')
     steadystate = 1;
 elseif strcmp(consType,'topology')
     steadystate = 0;
+else
+    error('spectraCCME:badConsType', ...
+        ['consType must be ''stoichiometry'' or ''topology'', ' ...
+         'not ''%s''.'], consType);
 end
 
 
@@ -125,7 +141,7 @@ elseif strcmp(probType,'minNetLP')
 elseif strcmp(probType,'minNetDC')
     [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
 elseif strcmp(probType,'growthOptim')
-    [reacInd,x] = growthOptim(model,direction,weights,tol,steadyState);
+    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate);
 elseif strcmp(probType,'tradeOff')
     if ~exist('solveTime', 'var') || isempty(solveTime)
         solveTime=7200;
@@ -136,7 +152,7 @@ elseif strcmp(probType,'tradeOff')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x] = tradeOff(model,direction,weights,tol,steadyState,solveTime,flux);
+    [reacInd,x] = tradeOff(model,direction,weights,tol,steadystate,solveTime,flux);
 end
 
 flux = x(1:numel(model.rxns));

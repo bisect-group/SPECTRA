@@ -143,6 +143,8 @@ elseif strcmp(probType,'minNetMILP')
     MILPproblem.vartype = [repmat('C',n,1);repmat('B',n_,1)];
     MILPproblem.csense = [csenseeq; csenseineq1; csenseineq2;csenseineq3];
     changeCobraSolverParams('MILP', 'feasTol', 1e-9);
+    fprintf(['minNet: MILP feasTol set to 1e-9. This is a global COBRA ' ...
+             'setting and stays in effect after this function returns.\n']);
     if exist('x0', 'var')&&~isempty(x0)
         MILPproblem.x0  = [x0;abs(x0(dir0))>1e-12]; 
     end
@@ -200,7 +202,7 @@ elseif strcmp(probType,'minNetDC')
         x=zeros(n,1);
         x(direction==0) = solution.x;
         x(direction~=0) = solution.z;
-        reacInd = abs(x(1:n))>=0.99*getCobraSolverParams('LP', 'feasTol');
+        reacInd = abs(x(1:n))>=tol*1e-7;
     end
 end
 end
