@@ -1,0 +1,165 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2026a"><title>Gap-filling towards metabolic tasks</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 28.8px; min-height: 0px; white-space: pre; color: rgb(192, 76, 11); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 24px; font-weight: 400; text-align: left;  }
+._richTextNode {white-space: break-spaces;}
+.S1 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S2 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 25px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.CodeBlock { background-color: #F5F5F5; margin: 10px 0 10px 0; }
+.S3 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 1px solid rgb(217, 217, 217); border-bottom: 0px none rgb(33, 33, 33); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S4 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 0px none rgb(33, 33, 33); border-radius: 0px; padding: 0px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 1px solid rgb(217, 217, 217); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S7 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 1px solid rgb(217, 217, 217); border-bottom: 1px solid rgb(217, 217, 217); border-radius: 4px; padding: 6px 45px 4px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }</style></head><body><div class = rtcContent><h1  class = 'S0'><span class="_richTextNode">Gap-filling towards metabolic tasks</span></h1><div  class = 'S1'><span class="_richTextNode">A metabolic task states something a network must be able to do: take up these metabolites, produce those, carry flux through this reaction. This tutorial fills the gaps in a draft until it can perform a list of them.</span></div><div  class = 'S1'><span class="_richTextNode">Tasks are a stricter requirement than growth, and a more informative one. A model can grow while being unable to make half the amino acids; a task list says so.</span></div><h2  class = 'S2'><span class="_richTextNode">The idea</span></h2><div  class = 'S1'><span class="_richTextNode">Requiring a model to perform a task is difficult to express as a constraint. Requiring it to contain a reaction is exactly what spectraME already does.</span></div><div  class = 'S1'><span class="_richTextNode">So: compute, for each task, the reactions without which it becomes infeasible, and hand their union to the extraction as the core set. That is the step essentialReactionsForTasks performs.</span></div><div  class = 'S1'><span class="_richTextNode">It is a necessary condition rather than a sufficient one. A task with two alternative routes has no essential reactions at all, since either route can be removed on its own, so forcing the essential set does not guarantee the task survives. It carries most of the weight cheaply, and the repair pass picks up the rest.</span></div><h2  class = 'S2'><span class="_richTextNode">Setting up</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >initCobraToolbox(false)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >changeCobraSolver(</span><span style="color: rgb(167, 9, 245);">'gurobi'</span><span >,</span><span style="color: rgb(167, 9, 245);">'all'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >addpath(genpath(fullfile(fileparts(pwd),</span><span style="color: rgb(167, 9, 245);">'src'</span><span >)));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >model = readCbModel(</span><span style="color: rgb(167, 9, 245);">'ecoli_core_model.mat'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >universal = model;</span></span></div></div></div><h2  class = 'S2'><span class="_richTextNode">Writing a task</span></h2><div  class = 'S1'><span class="_richTextNode">A task is built from the metabolites it may take up, the ones it may produce, and any reactions it adds for the duration of the check.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >hydrolysis = taskEquation({</span><span style="color: rgb(167, 9, 245);">'atp[c]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'h2o[c]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'adp[c]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'pi[c]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'h[c]'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >                          [-1 -1 1 1 1], [1 1000]);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >AER = {</span><span style="color: rgb(167, 9, 245);">'glc-D[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'o2[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'pi[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'h2o[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'h[e]'</span><span >};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >OUT = {</span><span style="color: rgb(167, 9, 245);">'co2[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'h2o[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'h[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'ac[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'etoh[e]'</span><span >,</span><span style="color: rgb(167, 9, 245);">'for[e]'</span><span >};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >t1 = metabolicTask(</span><span style="color: rgb(167, 9, 245);">'atp_aerobic'</span><span >, </span><span style="color: rgb(167, 9, 245);">'inputs'</span><span >, AER, </span><span style="color: rgb(167, 9, 245);">'outputs'</span><span >, OUT, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >                   </span><span style="color: rgb(167, 9, 245);">'equations'</span><span >, hydrolysis);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >t2 = metabolicTask(</span><span style="color: rgb(167, 9, 245);">'atp_anaerobic'</span><span >, </span><span style="color: rgb(167, 9, 245);">'inputs'</span><span >, AER(~strcmp(AER,</span><span style="color: rgb(167, 9, 245);">'o2[e]'</span><span >)), </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >                   </span><span style="color: rgb(167, 9, 245);">'outputs'</span><span >, OUT, </span><span style="color: rgb(167, 9, 245);">'equations'</span><span >, hydrolysis);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >tasks = [t1; t2];</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Two details are worth pausing on.</span></div><div  class = 'S1'><span class="_richTextNode">The equation is ATP hydrolysis, forced to run at a rate of at least 1. That is how you ask whether the network can make ATP: demand that it be spent, and it can only be spent if something regenerates it.</span></div><div  class = 'S1'><span class="_richTextNode">Bounds default to [0 1000] — allowed, never required — so a task with no positive lower bound anywhere is satisfied by the all-zero flux vector and passes trivially. metabolicTask warns when you build one.</span></div><div  class = 'S1'><span class="_richTextNode">The inputs and outputs are not exchange reactions, which is why the lower bound is 0 rather than -1000. taskConstraints adds an input as "--&gt; met" rather than as an exchange "met &lt;=&gt;", so positive flux is uptake and the bounds read as uptake rates directly.</span></div><h2  class = 'S2'><span class="_richTextNode">Check the universal model first</span></h2><div  class = 'S1'><span class="_richTextNode">Always do this before gap-filling. A task the universal model cannot perform can never be gap-filled towards, because there is nothing to add that would help, and it will sit in the results as a permanent failure.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre"><span >checkTasks(universal, tasks);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">gapfillForTasks checks anyway and skips what it cannot use, with a warning. Checking first tells you whether the list or the model is at fault.</span></div><h2  class = 'S2'><span class="_richTextNode">The essential reactions</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre"><span >[core, perTask] = essentialReactionsForTasks(universal, tasks);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Only a reaction carrying flux in some feasible solution can be essential: if a solution leaves it at zero, fixing it to zero keeps that solution available. The search therefore starts from the reactions one solution uses and shrinks that set by repeatedly minimising total flux, which rules out in a single LP every reaction another route can avoid. Only the survivors are tested one at a time, which is the expensive part.</span></div><div  class = 'S1'><span class="_richTextNode">The spread between tasks is informative. Aerobic ATP production usually has very few essential reactions, because almost every step has an alternative; anaerobic ATP has many more, because fermentation is a narrow path. A task with none is a task the core set cannot speak for.</span></div><h2  class = 'S2'><span class="_richTextNode">A draft with gaps</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >knock = {</span><span style="color: rgb(167, 9, 245);">'CYTBD'</span><span >,</span><span style="color: rgb(167, 9, 245);">'ACALD'</span><span >,</span><span style="color: rgb(167, 9, 245);">'GLUSy'</span><span >,</span><span style="color: rgb(167, 9, 245);">'AKGDH'</span><span >};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >draft = removeRxns(universal, knock, </span><span style="color: rgb(167, 9, 245);">'metFlag'</span><span >, false);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >checkTasks(draft, tasks);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Both tasks now fail.</span></div><h2  class = 'S2'><span class="_richTextNode">Gap-fill</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >result = gapfillForTasks(draft, universal, tasks, 1e-3);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >disp(result.summary)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'added: %s\n'</span><span >, strjoin(result.added', </span><span style="color: rgb(167, 9, 245);">', '</span><span >));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% 1 reactions added to a 91-reaction draft</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   performs 2 of 2 usable tasks</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% added: ACALD</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">One reaction restores both tasks. Three of the four removed were not needed: the network has other ways to run the TCA cycle and to make glutamate, which is the point of gap-filling towards tasks rather than towards a particular reaction list.</span></div><h2  class = 'S2'><span class="_richTextNode">The two passes</span></h2><div  class = 'S1'><span class="_richTextNode">gapfillForTasks works in two steps, and the second is why this is not just an extraction.</span></div><div  class = 'S1'><span class="_richTextNode">The core solve forces in the reactions no task can do without. That is necessary but not sufficient, for the reason given at the top: a task with alternative routes contributes nothing to the core set, so it can still fail afterwards.</span></div><div  class = 'S1'><span class="_richTextNode">The repair pass then goes task by task over whatever still fails, inside that task's own constraints, minimising the count of reactions not already present. Inside those constraints the model is already forced to perform the task, so that minimisation gives the cheapest repair directly. Repair always uses minNetMILP whatever the core solve used, because repairing one task is a small problem and counting reactions exactly is what that formulation is for.</span></div><div  class = 'S1'><span class="_richTextNode">Either pass can be turned off with coreSolve and repair, and an already-computed core set can be passed as essentialRxns to skip recomputing it.</span></div><h2  class = 'S2'><span class="_richTextNode">Reading a published task list</span></h2><div  class = 'S1'><span class="_richTextNode">Task lists are published as tab-separated files with columns ID, DESCRIPTION, SHOULD FAIL, IN, IN LB, IN UB, OUT, OUT LB, OUT UB, EQU, EQU LB, EQU UB, with metabolites written as name[compartment].</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre"><span >[tasks, unresolved] = parseTaskList(</span><span style="color: rgb(167, 9, 245);">'metabolicTasks_Essential.txt'</span><span >, model);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">References resolve by metabolite name and compartment, not by identifier, because the lists are written against no particular namespace. Anything the model does not have is reported in unresolved and its task is skipped by default — it could never be performed, so keeping it only produces failures no gap-fill could repair.</span></div><div  class = 'S1'><span class="_richTextNode">Some lists are written against a convention where something common may always enter or leave and is then omitted, usually oxygen or water. freeInputs and freeOutputs let those through:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S7'><span style="white-space: pre"><span >[tasks, ~] = parseTaskList(</span><span style="color: rgb(167, 9, 245);">'tasks.txt'</span><span >, model, true, {</span><span style="color: rgb(167, 9, 245);">'O2[s]'</span><span >}, {</span><span style="color: rgb(167, 9, 245);">'H2O[s]'</span><span >});</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Both loosen every task, and a loose enough task passes for the wrong reason. Check them against the list's SHOULD FAIL controls, which are its negative controls: a model that can perform them is leaking.</span></div><h2  class = 'S2'><span class="_richTextNode">See also</span></h2><div  class = 'S1'><span class="_richTextNode">Tutorial_gapfillForGrowth, for the same idea with growth as the requirement. The functions used here are metabolicTask, taskEquation, checkTasks, essentialReactionsForTasks, gapfillForTasks and parseTaskList.</span></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Gap-filling towards metabolic tasks
+% A metabolic task states something a network must be able to do: take up these 
+% metabolites, produce those, carry flux through this reaction. This tutorial 
+% fills the gaps in a draft until it can perform a list of them.
+% 
+% Tasks are a stricter requirement than growth, and a more informative one. 
+% A model can grow while being unable to make half the amino acids; a task list 
+% says so.
+%% The idea
+% Requiring a model to perform a task is difficult to express as a constraint. 
+% Requiring it to contain a reaction is exactly what spectraME already does.
+% 
+% So: compute, for each task, the reactions without which it becomes infeasible, 
+% and hand their union to the extraction as the core set. That is the step essentialReactionsForTasks 
+% performs.
+% 
+% It is a necessary condition rather than a sufficient one. A task with two 
+% alternative routes has no essential reactions at all, since either route can 
+% be removed on its own, so forcing the essential set does not guarantee the task 
+% survives. It carries most of the weight cheaply, and the repair pass picks up 
+% the rest.
+%% Setting up
+
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+addpath(genpath(fullfile(fileparts(pwd),'src')));
+
+model = readCbModel('ecoli_core_model.mat');
+universal = model;
+%% Writing a task
+% A task is built from the metabolites it may take up, the ones it may produce, 
+% and any reactions it adds for the duration of the check.
+
+hydrolysis = taskEquation({'atp[c]','h2o[c]','adp[c]','pi[c]','h[c]'}, ...
+                          [-1 -1 1 1 1], [1 1000]);
+
+AER = {'glc-D[e]','o2[e]','pi[e]','h2o[e]','h[e]'};
+OUT = {'co2[e]','h2o[e]','h[e]','ac[e]','etoh[e]','for[e]'};
+
+t1 = metabolicTask('atp_aerobic', 'inputs', AER, 'outputs', OUT, ...
+                   'equations', hydrolysis);
+t2 = metabolicTask('atp_anaerobic', 'inputs', AER(~strcmp(AER,'o2[e]')), ...
+                   'outputs', OUT, 'equations', hydrolysis);
+tasks = [t1; t2];
+%% 
+% Two details are worth pausing on.
+% 
+% The equation is ATP hydrolysis, forced to run at a rate of at least 1. That 
+% is how you ask whether the network can make ATP: demand that it be spent, and 
+% it can only be spent if something regenerates it.
+% 
+% Bounds default to [0 1000] — allowed, never required — so a task with no positive 
+% lower bound anywhere is satisfied by the all-zero flux vector and passes trivially. 
+% metabolicTask warns when you build one.
+% 
+% The inputs and outputs are not exchange reactions, which is why the lower 
+% bound is 0 rather than -1000. taskConstraints adds an input as "REPLACE_WITH_DASH_DASH> met" rather 
+% than as an exchange "met <=>", so positive flux is uptake and the bounds read 
+% as uptake rates directly.
+%% Check the universal model first
+% Always do this before gap-filling. A task the universal model cannot perform 
+% can never be gap-filled towards, because there is nothing to add that would 
+% help, and it will sit in the results as a permanent failure.
+
+checkTasks(universal, tasks);
+%% 
+% gapfillForTasks checks anyway and skips what it cannot use, with a warning. 
+% Checking first tells you whether the list or the model is at fault.
+%% The essential reactions
+
+[core, perTask] = essentialReactionsForTasks(universal, tasks);
+%% 
+% Only a reaction carrying flux in some feasible solution can be essential: 
+% if a solution leaves it at zero, fixing it to zero keeps that solution available. 
+% The search therefore starts from the reactions one solution uses and shrinks 
+% that set by repeatedly minimising total flux, which rules out in a single LP 
+% every reaction another route can avoid. Only the survivors are tested one at 
+% a time, which is the expensive part.
+% 
+% The spread between tasks is informative. Aerobic ATP production usually has 
+% very few essential reactions, because almost every step has an alternative; 
+% anaerobic ATP has many more, because fermentation is a narrow path. A task with 
+% none is a task the core set cannot speak for.
+%% A draft with gaps
+
+knock = {'CYTBD','ACALD','GLUSy','AKGDH'};
+draft = removeRxns(universal, knock, 'metFlag', false);
+checkTasks(draft, tasks);
+%% 
+% Both tasks now fail.
+%% Gap-fill
+
+result = gapfillForTasks(draft, universal, tasks, 1e-3);
+
+disp(result.summary)
+fprintf('added: %s\n', strjoin(result.added', ', '));
+% 1 reactions added to a 91-reaction draft
+%   performs 2 of 2 usable tasks
+% added: ACALD
+%% 
+% One reaction restores both tasks. Three of the four removed were not needed: 
+% the network has other ways to run the TCA cycle and to make glutamate, which 
+% is the point of gap-filling towards tasks rather than towards a particular reaction 
+% list.
+%% The two passes
+% gapfillForTasks works in two steps, and the second is why this is not just 
+% an extraction.
+% 
+% The core solve forces in the reactions no task can do without. That is necessary 
+% but not sufficient, for the reason given at the top: a task with alternative 
+% routes contributes nothing to the core set, so it can still fail afterwards.
+% 
+% The repair pass then goes task by task over whatever still fails, inside that 
+% task's own constraints, minimising the count of reactions not already present. 
+% Inside those constraints the model is already forced to perform the task, so 
+% that minimisation gives the cheapest repair directly. Repair always uses minNetMILP 
+% whatever the core solve used, because repairing one task is a small problem 
+% and counting reactions exactly is what that formulation is for.
+% 
+% Either pass can be turned off with coreSolve and repair, and an already-computed 
+% core set can be passed as essentialRxns to skip recomputing it.
+%% Reading a published task list
+% Task lists are published as tab-separated files with columns ID, DESCRIPTION, 
+% SHOULD FAIL, IN, IN LB, IN UB, OUT, OUT LB, OUT UB, EQU, EQU LB, EQU UB, with 
+% metabolites written as name[compartment].
+
+[tasks, unresolved] = parseTaskList('metabolicTasks_Essential.txt', model);
+%% 
+% References resolve by metabolite name and compartment, not by identifier, 
+% because the lists are written against no particular namespace. Anything the 
+% model does not have is reported in unresolved and its task is skipped by default 
+% — it could never be performed, so keeping it only produces failures no gap-fill 
+% could repair.
+% 
+% Some lists are written against a convention where something common may always 
+% enter or leave and is then omitted, usually oxygen or water. freeInputs and 
+% freeOutputs let those through:
+
+[tasks, ~] = parseTaskList('tasks.txt', model, true, {'O2[s]'}, {'H2O[s]'});
+%% 
+% Both loosen every task, and a loose enough task passes for the wrong reason. 
+% Check them against the list's SHOULD FAIL controls, which are its negative controls: 
+% a model that can perform them is leaking.
+%% See also
+% Tutorial_gapfillForGrowth, for the same idea with growth as the requirement. 
+% The functions used here are metabolicTask, taskEquation, checkTasks, essentialReactionsForTasks, 
+% gapfillForTasks and parseTaskList.
+##### SOURCE END #####
+-->
+</div></body></html>
