@@ -2,70 +2,84 @@ function report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutof
 % Check an extracted model against what the extraction promised.
 %
 % USAGE:
-%   report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutoff,seed,method)
+%
+%    report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutoff,seed,method)
 %
 % INPUTS:
-%   extracted: COBRA model structure returned by spectraME or spectraCCME.
-%   coreRxns:  Reaction IDs that were asked for, as a cell array of char.
-%              spectraME takes core reactions as *indices into the model it
-%              was given*, and the extracted model is smaller, so those
-%              indices no longer point at the same reactions. Pass
-%              model.rxns(coreRxns) rather than coreRxns itself. For
-%              spectraCCME, leave out the reactions it reported as blocked;
-%              it was never going to include those.
+%    extracted:          COBRA model structure returned by spectraME or
+%                        spectraCCME.
+%    coreRxns:           Reaction IDs that were asked for, as a cell array
+%                        of char. spectraME takes core reactions as
+%                        *indices into the model it was given*, and the
+%                        extracted model is smaller, so those indices no
+%                        longer point at the same reactions. Pass
+%                        model.rxns(coreRxns) rather than coreRxns itself.
+%                        For spectraCCME, leave out the reactions it
+%                        reported as blocked; it was never going to include
+%                        those.
 %
 % OPTIONAL INPUTS:
-%   tol:             Flux threshold the extraction was run with
-%                    (Default: 1e-4). Use the same value, or the answer does
-%                    not describe the model you have.
-%   consType:        Consistency type the extraction was run with, either
-%                    'stoichiometry' or 'topology'. Only used by
-%                    method 'spectra'. (Default: 'stoichiometry')
-%   detectionCutoff: Absolute flux at which a reaction counts as carrying
-%                    flux. (Default: the solver's feasTol for method 'fva',
-%                    0.99*tol for method 'spectra')
-%   seed:            Seed for the consistency check's random coefficients.
-%                    Only used by method 'spectra'. (Default: none)
-%   method:          How to decide whether a reaction is blocked, either
-%                    'fva' or 'spectra'. (Default: 'fva')
-%                    'fva' maximises and minimises every reaction in turn.
-%                    It is slow but authoritative. 'spectra' reuses this
-%                    package's own consistency check, which is far quicker
-%                    but *can report a dead reaction as consistent* on a
-%                    model holding numerically marginal reactions - exactly
-%                    the models an LP extraction produces. Use it only when
-%                    speed matters more than the answer.
+%    tol:                Flux threshold the extraction was run with
+%                        (Default: 1e-4). Use the same value, or the answer
+%                        does not describe the model you have.
+%    consType:           Consistency type the extraction was run with,
+%                        either 'stoichiometry' or 'topology'. Only used by
+%                        method 'spectra'. (Default: 'stoichiometry')
+%    detectionCutoff:    Absolute flux at which a reaction counts as
+%                        carrying flux. (Default: the solver's feasTol for
+%                        method 'fva', 0.99*tol for method 'spectra')
+%    seed:               Seed for the consistency check's random
+%                        coefficients. Only used by method 'spectra'.
+%                        (Default: none)
+%    method:             How to decide whether a reaction is blocked,
+%                        either 'fva' or 'spectra'. (Default: 'fva') 'fva'
+%                        maximises and minimises every reaction in turn. It
+%                        is slow but authoritative. 'spectra' reuses this
+%                        package's own consistency check, which is far
+%                        quicker but *can report a dead reaction as
+%                        consistent* on a model holding numerically
+%                        marginal reactions - exactly the models an LP
+%                        extraction produces. Use it only when speed
+%                        matters more than the answer.
 %
 % OUTPUTS:
-%   report: Structure with fields
-%             nReactions   - how many reactions the extracted model has
-%             missingCore  - core reactions absent from it. Should always be
-%                            empty; an extraction that drops one is a bug.
-%             blocked      - reactions in it that cannot carry flux in it
-%             blockedCore  - the core reactions among blocked. These are the
-%                            damaging ones: the reaction is present, so the
-%                            model looks right, but it cannot carry flux and
-%                            so cannot play the role it was chosen for.
-%             isConsistent - true when nothing in the model is blocked
-%             isValid      - true when every core reaction is present and
-%                            able to carry flux, and nothing else is blocked
-%             summary      - a readable multi-line summary, as char
+%    report:             Structure with fields:
+%
+%                          * nReactions - how many reactions the extracted
+%                            model has
+%                          * missingCore - core reactions absent from it.
+%                            Should always be empty; an extraction that
+%                            drops one is a bug.
+%                          * blocked - reactions in it that cannot carry
+%                            flux in it
+%                          * blockedCore - the core reactions among
+%                            blocked. These are the damaging ones: the
+%                            reaction is present, so the model looks right,
+%                            but it cannot carry flux and so cannot play
+%                            the role it was chosen for.
+%                          * isConsistent - true when nothing in the model
+%                            is blocked
+%                          * isValid - true when every core reaction is
+%                            present and able to carry flux, and nothing
+%                            else is blocked
+%                          * summary - a readable multi-line summary, as
+%                            char
 %
 % NOTE:
-%   An extraction promises two things: that every core reaction is in the
-%   result, and that the result is flux consistent. The first always holds.
-%   The second does not always hold for the LP formulations. minNetLP and
-%   growthOptim read their answer off a flux vector, keeping any reaction
-%   whose flux clears a cutoff near the solver's own tolerance. A few
-%   reactions end up carrying flux just under that cutoff while doing
-%   load-bearing balancing work, and dropping them leaves a mass-balance
-%   residual of the same order. That residual is above the solver's
-%   feasibility tolerance, so the kept flux vector is not actually feasible
-%   in the extracted model, and chains that relied on those sub-cutoff
-%   reactions can then carry no flux at all - a core reaction included.
-%   The mixed-integer formulations should not have this problem, since a
-%   binary at zero forces its reaction's flux to exactly zero and so
-%   discards nothing.
+%    An extraction promises two things: that every core reaction is in the
+%    result, and that the result is flux consistent. The first always holds.
+%    The second does not always hold for the LP formulations. minNetLP and
+%    growthOptim read their answer off a flux vector, keeping any reaction
+%    whose flux clears a cutoff near the solver's own tolerance. A few
+%    reactions end up carrying flux just under that cutoff while doing
+%    load-bearing balancing work, and dropping them leaves a mass-balance
+%    residual of the same order. That residual is above the solver's
+%    feasibility tolerance, so the kept flux vector is not actually feasible
+%    in the extracted model, and chains that relied on those sub-cutoff
+%    reactions can then carry no flux at all - a core reaction included.
+%    The mixed-integer formulations should not have this problem, since a
+%    binary at zero forces its reaction's flux to exactly zero and so
+%    discards nothing.
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras

@@ -2,29 +2,33 @@ function results = checkTasks(model,tasks,printLevel)
 % Check a model against a list of metabolic tasks.
 %
 % USAGE:
-%   results = checkTasks(model,tasks,printLevel)
+%
+%    results = checkTasks(model,tasks,printLevel)
 %
 % INPUTS:
-%   model: COBRA model structure.
-%   tasks: Task structures from metabolicTask, as a struct array.
+%    model:              COBRA model structure.
+%    tasks:              Task structures from metabolicTask, as a struct
+%                        array.
 %
-% OPTIONAL INPUT:
-%   printLevel: 0 prints nothing, 1 prints a line per task and a tally at
-%               the end. (Default: 1)
+% OPTIONAL INPUTS:
+%    printLevel:         0 prints nothing, 1 prints a line per task and a
+%                        tally at the end. (Default: 1)
 %
-% OUTPUT:
-%   results: Struct array, one entry per task, with the fields checkTask
-%            returns: taskID, feasible, ok and missing.
+% OUTPUTS:
+%    results:            Struct array, one entry per task, with the fields
+%                        checkTask returns: taskID, feasible, ok and
+%                        missing.
 %
 % NOTE:
-%   Run this on the universal model before gap-filling towards tasks. A task
-%   the universal model cannot perform can never be gap-filled towards,
-%   because there is nothing to add that would help, and it will sit in the
-%   results as a permanent failure.
+%    Run this on the universal model before gap-filling towards tasks. A task
+%    the universal model cannot perform can never be gap-filled towards,
+%    because there is nothing to add that would help, and it will sit in the
+%    results as a permanent failure.
 %
 % EXAMPLE:
-%   results = checkTasks(model, tasks);
-%   failed = {results(~[results.ok]).taskID};
+%
+%    results = checkTasks(model, tasks);
+%    failed = {results(~[results.ok]).taskID};
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras

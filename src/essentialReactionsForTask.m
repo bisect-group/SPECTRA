@@ -2,32 +2,35 @@ function essential = essentialReactionsForTask(model,task,candidates)
 % Find the reactions without which a metabolic task becomes infeasible.
 %
 % USAGE:
-%   essential = essentialReactionsForTask(model,task,candidates)
+%
+%    essential = essentialReactionsForTask(model,task,candidates)
 %
 % INPUTS:
-%   model: COBRA model structure to search in.
-%   task:  Task structure from metabolicTask. A task the model cannot
-%          perform at all has no essential reactions.
+%    model:              COBRA model structure to search in.
+%    task:               Task structure from metabolicTask. A task the
+%                        model cannot perform at all has no essential
+%                        reactions.
 %
-% OPTIONAL INPUT:
-%   candidates: Reaction IDs to restrict the search to, as a cell array of
-%               char. (Default: every reaction in the model)
+% OPTIONAL INPUTS:
+%    candidates:         Reaction IDs to restrict the search to, as a cell
+%                        array of char. (Default: every reaction in the
+%                        model)
 %
-% OUTPUT:
-%   essential: Reaction IDs without which the task is infeasible, as a cell
-%              array of char, sorted.
+% OUTPUTS:
+%    essential:          Reaction IDs without which the task is infeasible,
+%                        as a cell array of char, sorted.
 %
 % NOTE:
-%   Only a reaction carrying flux in a feasible solution can be essential:
-%   if some solution leaves it at zero, fixing it to zero keeps that
-%   solution available. The search therefore starts from the reactions one
-%   solution uses and shrinks that set by repeatedly minimising the total
-%   flux through whatever is left, which rules out in a single LP every
-%   reaction some other route can avoid. Only the survivors are then tested
-%   one at a time, which is the expensive part.
+%    Only a reaction carrying flux in a feasible solution can be essential:
+%    if some solution leaves it at zero, fixing it to zero keeps that
+%    solution available. The search therefore starts from the reactions one
+%    solution uses and shrinks that set by repeatedly minimising the total
+%    flux through whatever is left, which rules out in a single LP every
+%    reaction some other route can avoid. Only the survivors are then tested
+%    one at a time, which is the expensive part.
 %
-%   The reactions this function adds to apply the task are never reported;
-%   they are scaffolding, not part of the model.
+%    The reactions this function adds to apply the task are never reported;
+%    they are scaffolding, not part of the model.
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras

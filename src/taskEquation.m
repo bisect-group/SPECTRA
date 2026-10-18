@@ -2,24 +2,28 @@ function equation = taskEquation(mets,coeffs,bounds)
 % Build a reaction that a task adds to the model while it is being checked.
 %
 % USAGE:
-%   equation = taskEquation(mets,coeffs,bounds)
+%
+%    equation = taskEquation(mets,coeffs,bounds)
 %
 % INPUTS:
-%   mets:   Metabolite IDs, as a cell array of char.
-%   coeffs: Stoichiometric coefficient for each, as a numeric vector of the
-%           same length. Negative coefficients consume, positive produce.
+%    mets:               Metabolite IDs, as a cell array of char.
+%    coeffs:             Stoichiometric coefficient for each, as a numeric
+%                        vector of the same length. Negative coefficients
+%                        consume, positive produce.
 %
 % OPTIONAL INPUTS:
-%   bounds: Flux bounds as [lower upper] (Default: [-1000 1000]). A positive
-%           lower bound is what forces the task to actually happen.
+%    bounds:             Flux bounds as [lower upper] (Default: [-1000
+%                        1000]). A positive lower bound is what forces the
+%                        task to actually happen.
 %
-% OUTPUT:
-%   equation: Structure with fields mets, coeffs and bounds.
+% OUTPUTS:
+%    equation:           Structure with fields mets, coeffs and bounds.
 %
 % EXAMPLE:
-%   % ATP hydrolysis, forced to run at a rate of at least 1:
-%   equation = taskEquation({'atp_c','h2o_c','adp_c','pi_c','h_c'}, ...
-%                           [-1 -1 1 1 1], [1 1000]);
+%
+%    % ATP hydrolysis, forced to run at a rate of at least 1:
+%    equation = taskEquation({'atp_c','h2o_c','adp_c','pi_c','h_c'}, ...
+%                            [-1 -1 1 1 1], [1 1000]);
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras

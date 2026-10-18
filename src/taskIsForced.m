@@ -2,15 +2,17 @@ function forced = taskIsForced(task)
 % Return whether anything in a task requires nonzero flux.
 %
 % USAGE:
-%   forced = taskIsForced(task)
 %
-% INPUT:
-%   task: Task structure from metabolicTask.
+%    forced = taskIsForced(task)
 %
-% OUTPUT:
-%   forced: true when some output or equation has a positive lower bound.
-%           A task for which this is false is satisfied by the all-zero
-%           flux vector, so it passes trivially.
+% INPUTS:
+%    task:               Task structure from metabolicTask.
+%
+% OUTPUTS:
+%    forced:             true when some output or equation has a positive
+%                        lower bound. A task for which this is false is
+%                        satisfied by the all-zero flux vector, so it
+%                        passes trivially.
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras

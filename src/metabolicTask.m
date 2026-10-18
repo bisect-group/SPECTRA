@@ -2,50 +2,55 @@ function task = metabolicTask(id,varargin)
 % Build a statement of something a metabolic network must be able to do.
 %
 % USAGE:
-%   task = metabolicTask(id,'name',value,...)
 %
-% INPUT:
-%   id: A short identifier, as char.
+%    task = metabolicTask(id,'name',value,...)
+%
+% INPUTS:
+%    id:                 A short identifier, as char.
 %
 % OPTIONAL INPUTS (name/value pairs):
-%   'description':  What the task is for, in words. (Default: '')
-%   'inputs':       Metabolite IDs that may be taken up, as a cell array of
-%                   char. (Default: {})
-%   'inputBounds':  Bounds on each uptake flux, as an n-by-2 matrix of
-%                   [lower upper], or a single [lower upper] applied to all.
-%                   (Default: [0 1000] each, i.e. allowed but not required)
-%                   These are *not* exchange reaction bounds, so the lower
-%                   bound is 0 rather than -1000. taskConstraints adds an
-%                   input as '--> met' rather than as an exchange 'met <=>',
-%                   so positive flux is uptake and the bounds read as uptake
-%                   rates. See taskConstraints for why.
-%   'outputs':      Metabolite IDs that may be produced. (Default: {})
-%   'outputBounds': Bounds on each production flux, in the same shapes. A
-%                   positive lower bound *requires* the production.
-%                   (Default: [0 1000] each)
-%   'equations':    Reactions added for the duration of the check, as a
-%                   struct array from taskEquation. (Default: [])
-%   'shouldFail':   Whether the task is expected to be infeasible.
-%                   (Default: false). These are the negative controls of a
-%                   task list: a model that can do them is leaking.
+%    'description':      What the task is for, in words. (Default: '')
+%    'inputs':           Metabolite IDs that may be taken up, as a cell
+%                        array of char. (Default: {})
+%    'inputBounds':      Bounds on each uptake flux, as an n-by-2 matrix of
+%                        [lower upper], or a single [lower upper] applied
+%                        to all. (Default: [0 1000] each, i.e. allowed but
+%                        not required) These are *not* exchange reaction
+%                        bounds, so the lower bound is 0 rather than -1000.
+%                        taskConstraints adds an input as '--> met' rather
+%                        than as an exchange 'met <=>', so positive flux is
+%                        uptake and the bounds read as uptake rates. See
+%                        taskConstraints for why.
+%    'outputs':          Metabolite IDs that may be produced. (Default: {})
+%    'outputBounds':     Bounds on each production flux, in the same
+%                        shapes. A positive lower bound *requires* the
+%                        production. (Default: [0 1000] each)
+%    'equations':        Reactions added for the duration of the check, as
+%                        a struct array from taskEquation. (Default: [])
+%    'shouldFail':       Whether the task is expected to be infeasible.
+%                        (Default: false). These are the negative controls
+%                        of a task list: a model that can do them is
+%                        leaking.
 %
-% OUTPUT:
-%   task: Structure with fields id, description, inputs, inputBounds,
-%         outputs, outputBounds, equations and shouldFail.
+% OUTPUTS:
+%    task:               Structure with fields id, description, inputs,
+%                        inputBounds, outputs, outputBounds, equations and
+%                        shouldFail.
 %
 % NOTE:
-%   A task with no positive lower bound anywhere is satisfied by the
-%   all-zero flux vector, so it passes trivially. Force the task through an
-%   output's lower bound or a taskEquation's. A warning says so if nothing
-%   in the task requires flux.
+%    A task with no positive lower bound anywhere is satisfied by the
+%    all-zero flux vector, so it passes trivially. Force the task through an
+%    output's lower bound or a taskEquation's. A warning says so if nothing
+%    in the task requires flux.
 %
 % EXAMPLE:
-%   hydrolysis = taskEquation({'atp_c','h2o_c','adp_c','pi_c','h_c'}, ...
-%                             [-1 -1 1 1 1], [1 1000]);
-%   task = metabolicTask('atp_aerobic', ...
-%       'inputs',  {'glc__D_e','o2_e','pi_e','h2o_e','h_e'}, ...
-%       'outputs', {'co2_e','h2o_e','h_e'}, ...
-%       'equations', hydrolysis);
+%
+%    hydrolysis = taskEquation({'atp_c','h2o_c','adp_c','pi_c','h_c'}, ...
+%                              [-1 -1 1 1 1], [1 1000]);
+%    task = metabolicTask('atp_aerobic', ...
+%        'inputs',  {'glc__D_e','o2_e','pi_e','h2o_e','h_e'}, ...
+%        'outputs', {'co2_e','h2o_e','h_e'}, ...
+%        'equations', hydrolysis);
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
