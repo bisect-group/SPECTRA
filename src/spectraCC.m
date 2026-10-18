@@ -1,6 +1,6 @@
-function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed)
+function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff)
 % USAGE:
-% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed)
+% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff)
 %
 % INPUTS:
 %    model: COBRA model structure.
@@ -16,6 +16,13 @@ function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed)
 %                     result reproducible across runs. Leave it out to draw
 %                     them unseeded, as every earlier version of this
 %                     function did. (Default: none)
+%    detectionCutoff: Absolute flux at which a reaction counts as carrying
+%                     flux. (Default: 0.99*tol, the value this function used
+%                     before it was an argument). Pass the solver's feasTol
+%                     instead to count any nonzero flux, which is what
+%                     fastcc does. It is last in the argument list so that
+%                     calls written against the earlier signature keep
+%                     working.
 %
 % OUTPUTS:
 %    ConsReacIDS: Reaction IDs corresponding to reactions in the input
@@ -30,6 +37,9 @@ if ~exist('tol', 'var') || isempty(tol)
 end
 if ~exist('consistencyType', 'var') || isempty(consistencyType)
     consistencyType = 'stoichiometry';
+end
+if ~exist('detectionCutoff', 'var') || isempty(detectionCutoff)
+    detectionCutoff = 0.99*tol;
 end
 % Seeding is opt-in. Without a seed the objective coefficients are drawn
 % exactly as before, so published results stay reproducible.
@@ -64,9 +74,9 @@ while sum(temp_core)~=sum(prev_rxns)
     prev_rxns = temp_core;
     LPS = LPS+2;
     [flux1,~] = forwardcc(model,temp_core,tol,steadystate);
-    temp_core(abs(flux1)>=tol*0.99)=false;
+    temp_core(abs(flux1)>=detectionCutoff)=false;
     [flux2,~] = reverse(model,temp_core,tol,steadystate);
-    temp_core(abs(flux2)>=tol*0.99)=false;
+    temp_core(abs(flux2)>=detectionCutoff)=false;
 end
 
 ConsReacIDS=setdiff(1:numel(model.rxns),find(temp_core))';
