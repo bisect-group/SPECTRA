@@ -67,15 +67,17 @@ function result = gapfillForGrowth(draft,universal,media,minGrowth,objectiveRxn,
 %
 % EXAMPLE:
 %
-%    M9 = {'EX_pi(e)','EX_h2o(e)','EX_h(e)','EX_nh4(e)','EX_o2(e)','EX_co2(e)'};
-%    carbon = {'EX_glc(e)','EX_ac(e)','EX_succ(e)'};
-%    media = struct('label',{},'rxns',{},'lb',{});
-%    for i = 1:numel(carbon)
-%        media(i).label = carbon{i};
-%        media(i).rxns  = [M9, carbon(i)];
-%        media(i).lb    = [-1000*ones(1,numel(M9)), -10];
-%    end
-%    result = gapfillForGrowth(draft, universal, media);
+%    ::
+%
+%        M9 = {'EX_pi(e)','EX_h2o(e)','EX_h(e)','EX_nh4(e)','EX_o2(e)','EX_co2(e)'};
+%        carbon = {'EX_glc(e)','EX_ac(e)','EX_succ(e)'};
+%        media = struct('label',{},'rxns',{},'lb',{});
+%        for i = 1:numel(carbon)
+%            media(i).label = carbon{i};
+%            media(i).rxns  = [M9, carbon(i)];
+%            media(i).lb    = [-1000*ones(1,numel(M9)), -10];
+%        end
+%        result = gapfillForGrowth(draft, universal, media);
 %
 % NOTE:
 %    The growth requirement is a bound on the objective reaction, not a

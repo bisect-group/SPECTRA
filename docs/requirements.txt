@@ -1,0 +1,5 @@
+sphinxcontrib-matlabdomain==0.18.0
+sphinx_rtd_theme==1.2.2
+sphinxcontrib-napoleon
+sphinx-tabs
+recommonmark

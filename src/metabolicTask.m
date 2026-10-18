@@ -8,7 +8,9 @@ function task = metabolicTask(id,varargin)
 % INPUTS:
 %    id:                 A short identifier, as char.
 %
-% OPTIONAL INPUTS (name/value pairs):
+% OPTIONAL INPUTS:
+%    Given as name/value pairs.
+%
 %    'description':      What the task is for, in words. (Default: '')
 %    'inputs':           Metabolite IDs that may be taken up, as a cell
 %                        array of char. (Default: {})

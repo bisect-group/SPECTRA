@@ -18,7 +18,7 @@ function [constrained,addedRxns] = taskConstraints(model,task)
 %                        equations added.
 %    addedRxns:          IDs of the reactions this function added, as a
 %                        cell array of char. They are all prefixed
-%                        'spectra_task_'.
+%                        ``spectra_task_``.
 %
 % NOTE:
 %    The task defines its own medium, so the model's own exchanges are closed

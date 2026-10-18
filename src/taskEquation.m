@@ -21,9 +21,11 @@ function equation = taskEquation(mets,coeffs,bounds)
 %
 % EXAMPLE:
 %
-%    % ATP hydrolysis, forced to run at a rate of at least 1:
-%    equation = taskEquation({'atp_c','h2o_c','adp_c','pi_c','h_c'}, ...
-%                            [-1 -1 1 1 1], [1 1000]);
+%    ::
+%
+%        % ATP hydrolysis, forced to run at a rate of at least 1:
+%        equation = taskEquation({'atp_c','h2o_c','adp_c','pi_c','h_c'}, ...
+%                                [-1 -1 1 1 1], [1 1000]);
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
