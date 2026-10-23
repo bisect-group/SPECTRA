@@ -1,0 +1,165 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2026a"><title>Choosing a formulation</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 28.8px; min-height: 0px; white-space: pre; color: rgb(192, 76, 11); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 24px; font-weight: 400; text-align: left;  }
+._richTextNode {white-space: break-spaces;}
+.S1 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S2 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 25px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.CodeBlock { background-color: #F5F5F5; margin: 10px 0 10px 0; }
+.S3 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 1px solid rgb(217, 217, 217); border-bottom: 0px none rgb(33, 33, 33); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S4 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 0px none rgb(33, 33, 33); border-radius: 0px; padding: 0px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 1px solid rgb(217, 217, 217); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }</style></head><body><div class = rtcContent><h1  class = 'S0'><span class="_richTextNode">Choosing a formulation</span></h1><div  class = 'S1'><span class="_richTextNode">probType decides what the extraction actually optimises. The choice changes the model you get, and it changes what a weight means, so the two go together.</span></div><div  class = 'S1'><span class="_richTextNode">minNetLP, the default, minimises weighted total absolute flux with non-negative weights in one LP. minNetMILP minimises the weighted reaction count, also with non-negative weights, in one MILP. tradeOff maximises net weight, positive in and negative out, and is the only one that takes weights of any sign. growthOptim maximises objective flux minus weighted flux, with non-negative weights, in one LP.</span></div><h2  class = 'S2'><span class="_richTextNode">Setting up</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >initCobraToolbox(false)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >changeCobraSolver(</span><span style="color: rgb(167, 9, 245);">'gurobi'</span><span >,</span><span style="color: rgb(167, 9, 245);">'all'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% Assumes this live script is run from docs/Tutorials; edit if not.</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >spectraRoot = fileparts(fileparts(pwd));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >addpath(genpath(fullfile(spectraRoot,</span><span style="color: rgb(167, 9, 245);">'src'</span><span >)));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >model = readCbModel(</span><span style="color: rgb(167, 9, 245);">'ecoli_core_model.mat'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >consistentIDs = spectraCC(model, 1e-3);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >blocked = setdiff(1:numel(model.rxns), consistentIDs);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >consistent = removeRxns(model, model.rxns(blocked), </span><span style="color: rgb(167, 9, 245);">'metFlag'</span><span >, false);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >core = findRxnIDs(consistent, {</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >});</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >biomass = consistent.rxns{consistent.c ~= 0};</span></span></div></div></div><h2  class = 'S2'><span class="_richTextNode">Seeing the difference</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">for </span><span >p = {</span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >,</span><span style="color: rgb(167, 9, 245);">'minNetMILP'</span><span >,</span><span style="color: rgb(167, 9, 245);">'growthOptim'</span><span >,</span><span style="color: rgb(167, 9, 245);">'tradeOff'</span><span >}</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    ex = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, p{1}, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'%-12s %3d reactions\n'</span><span >, p{1}, numel(ex.rxns));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Four very different models from the same core set. The spread is the point: these are not four implementations of one idea.</span></div><h2  class = 'S2'><span class="_richTextNode">minNetLP, the default</span></h2><div  class = 'S1'><span class="_richTextNode">Minimises the weighted sum of t_i subject to t_i &gt;= |v_i|, an L1 relaxation of minimising the reaction count. One LP, so it is by far the cheapest and the only one that is practical to run hundreds of times.</span></div><div  class = 'S1'><span class="_richTextNode">The catch is in the relaxation. L1 favours many small fluxes over a few large ones, so it tends to keep more reactions than strictly necessary: 27 here against the true minimum of 16.</span></div><h2  class = 'S2'><span class="_richTextNode">minNetMILP, the exact one</span></h2><div  class = 'S1'><span class="_richTextNode">Gives each candidate reaction a binary z_i tied to its flux, so that z_i = 0 pins the flux to zero, and minimises the weighted sum of z_i. That is the reaction count itself rather than a relaxation, which is why it finds 16 where minNetLP finds 27.</span></div><div  class = 'S1'><span class="_richTextNode">It is a MILP. On the core model that is instant; on a genome-scale model it may not finish at all, so use gurobi or CPLEX and cap the effort with solveTime, in seconds, which defaults to 7200.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >ex = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetMILP'</span><span >, 600, 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'%d reactions\n'</span><span >, numel(ex.rxns));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">A solution found before the cap is returned even if it was not proven optimal. That is the normal outcome at genome scale, and the incumbent is still a far smaller model than minNetLP gives.</span></div><h2  class = 'S2'><span class="_richTextNode">tradeOff, for evidence that cuts both ways</span></h2><div  class = 'S1'><span class="_richTextNode">The others treat a weight as a cost, so it must be non-negative. tradeOff treats it as evidence and takes any real number: positive pushes a reaction in, negative pushes it out. That is what you want when your omics data says some reactions are likely present and others likely absent.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >doubted = {</span><span style="color: rgb(167, 9, 245);">'SUCDi'</span><span >,</span><span style="color: rgb(167, 9, 245);">'FRD7'</span><span >,</span><span style="color: rgb(167, 9, 245);">'FUM'</span><span >,</span><span style="color: rgb(167, 9, 245);">'MDH'</span><span >};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >weights = ones(numel(consistent.rxns), 1);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >weights(findRxnIDs(consistent, doubted)) = -5;</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >ex = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, weights, 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'tradeOff'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'%d reactions, of the doubted four still present: %s\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    numel(ex.rxns), strjoin(intersect(doubted, ex.rxns)', </span><span style="color: rgb(167, 9, 245);">', '</span><span >));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">All four penalised reactions are gone, and the rest stay because their +1 weights reward inclusion.</span></div><div  class = 'S1'><span class="_richTextNode">That last part explains the 87 in the comparison above: with the default weights of +1 everywhere, tradeOff is asked to include as much as possible, so it keeps essentially the whole model. tradeOff with default weights is not a useful call. It only does something meaningful once the weights carry both signs.</span></div><h2  class = 'S2'><span class="_richTextNode">growthOptim, for growth</span></h2><div  class = 'S1'><span class="_richTextNode">Maximises the weighted objective flux minus the weighted absolute flux of everything else: reward the objective, charge for the rest. Use it when the extracted model needs to grow, not merely to be feasible.</span></div><div  class = 'S1'><span class="_richTextNode">The reward on an objective reaction is its weight, not its coefficient in model.c. The objective is used only to find which reactions those are, so the weight is what controls the trade-off. And unlike the other formulations it charges for the absolute flux of every non-objective reaction, core reactions included, not just the ones it is free to drop.</span></div><div  class = 'S1'><span class="_richTextNode">The weight has to be scaled against the model, and this is the part that catches people out. The reward is weight times objective flux, against a penalty of one per unit of flux everywhere else, and a genome-scale network at full growth carries hundreds of units of total flux. If the weight is too small, the optimum is simply not to grow at all.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">for </span><span >w = [1 100 1000 5000]</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    weights = ones(numel(consistent.rxns), 1);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    weights(findRxnIDs(consistent, biomass)) = w;</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    ex = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, weights, 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'growthOptim'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    growth = 0;</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(14, 0, 255);">if </span><span >ismember(biomass, ex.rxns)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        sol = optimizeCbModel(ex);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        growth = sol.f;</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(14, 0, 255);">end</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'weight %-6g %3d reactions, growth %.4f\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        w, numel(ex.rxns), growth);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Below roughly 1000 the biomass reaction is not even kept and the result is indistinguishable from minNetLP. Above it, growth jumps straight to the unconstrained maximum of 0.8739 and the model gains the reactions needed to support it.</span></div><div  class = 'S1'><span class="_richTextNode">Always check that the extracted model actually grows rather than assuming the formulation arranged it.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >sol = optimizeCbModel(ex);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >assert(sol.f &gt; 0, </span><span style="color: rgb(167, 9, 245);">'growthOptim produced a model that cannot grow'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'growth %.4f\n'</span><span >, sol.f);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">A weight of 1000 works here only because this model carries fluxes of order one and a biomass flux of order one. Scale it to your own model.</span></div><h2  class = 'S2'><span class="_richTextNode">A note on minNetDC</span></h2><div  class = 'S1'><span class="_richTextNode">minNetDC is still accepted but deprecated. It solved the same problem as minNetMILP through a difference-of-convex-functions relaxation, from the era before MILP solvers handled these problems well. Use minNetMILP instead.</span></div><h2  class = 'S2'><span class="_richTextNode">Which one should I use?</span></h2><div  class = 'S1'><span class="_richTextNode">Start with minNetLP. It is the default, it is one LP, and for most purposes a slightly larger model is not a problem.</span></div><div  class = 'S1'><span class="_richTextNode">Use minNetMILP when the model size is the result you care about and you can afford a MILP.</span></div><div  class = 'S1'><span class="_richTextNode">Use tradeOff when you have signed evidence, and not otherwise. With default weights it does nothing useful.</span></div><div  class = 'S1'><span class="_richTextNode">Use growthOptim when growth belongs in the objective. Any of them can return a growing model, by putting biomass in the core set or bounding it, but this is the one that trades biomass off against total flux.</span></div><h2  class = 'S2'><span class="_richTextNode">See also</span></h2><div  class = 'S1'><span class="_richTextNode">Tutorial_extraction, for the arguments these all share. Tutorial_gapfillForGrowth, where the choice of formulation decides what gets added. The functions used here are spectraME, minNet, tradeOff and growthOptim.</span></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Choosing a formulation
+% probType decides what the extraction actually optimises. The choice changes 
+% the model you get, and it changes what a weight means, so the two go together.
+% 
+% minNetLP, the default, minimises weighted total absolute flux with non-negative 
+% weights in one LP. minNetMILP minimises the weighted reaction count, also with 
+% non-negative weights, in one MILP. tradeOff maximises net weight, positive in 
+% and negative out, and is the only one that takes weights of any sign. growthOptim 
+% maximises objective flux minus weighted flux, with non-negative weights, in 
+% one LP.
+%% Setting up
+
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+
+model = readCbModel('ecoli_core_model.mat');
+consistentIDs = spectraCC(model, 1e-3);
+blocked = setdiff(1:numel(model.rxns), consistentIDs);
+consistent = removeRxns(model, model.rxns(blocked), 'metFlag', false);
+core = findRxnIDs(consistent, {'PGI'});
+biomass = consistent.rxns{consistent.c ~= 0};
+%% Seeing the difference
+
+for p = {'minNetLP','minNetMILP','growthOptim','tradeOff'}
+    ex = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+        'coreDirection', p{1}, [], 0, {}, 0);
+    fprintf('%-12s %3d reactions\n', p{1}, numel(ex.rxns));
+end
+%% 
+% Four very different models from the same core set. The spread is the point: 
+% these are not four implementations of one idea.
+%% minNetLP, the default
+% Minimises the weighted sum of t_i subject to t_i >= |v_i|, an L1 relaxation 
+% of minimising the reaction count. One LP, so it is by far the cheapest and the 
+% only one that is practical to run hundreds of times.
+% 
+% The catch is in the relaxation. L1 favours many small fluxes over a few large 
+% ones, so it tends to keep more reactions than strictly necessary: 27 here against 
+% the true minimum of 16.
+%% minNetMILP, the exact one
+% Gives each candidate reaction a binary z_i tied to its flux, so that z_i = 
+% 0 pins the flux to zero, and minimises the weighted sum of z_i. That is the 
+% reaction count itself rather than a relaxation, which is why it finds 16 where 
+% minNetLP finds 27.
+% 
+% It is a MILP. On the core model that is instant; on a genome-scale model it 
+% may not finish at all, so use gurobi or CPLEX and cap the effort with solveTime, 
+% in seconds, which defaults to 7200.
+
+ex = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetMILP', 600, 0, {}, 0);
+fprintf('%d reactions\n', numel(ex.rxns));
+%% 
+% A solution found before the cap is returned even if it was not proven optimal. 
+% That is the normal outcome at genome scale, and the incumbent is still a far 
+% smaller model than minNetLP gives.
+%% tradeOff, for evidence that cuts both ways
+% The others treat a weight as a cost, so it must be non-negative. tradeOff 
+% treats it as evidence and takes any real number: positive pushes a reaction 
+% in, negative pushes it out. That is what you want when your omics data says 
+% some reactions are likely present and others likely absent.
+
+doubted = {'SUCDi','FRD7','FUM','MDH'};
+weights = ones(numel(consistent.rxns), 1);
+weights(findRxnIDs(consistent, doubted)) = -5;
+
+ex = spectraME(consistent, core, 1e-3, 'stoichiometry', weights, 1, ...
+    'coreDirection', 'tradeOff', [], 0, {}, 0);
+fprintf('%d reactions, of the doubted four still present: %s\n', ...
+    numel(ex.rxns), strjoin(intersect(doubted, ex.rxns)', ', '));
+%% 
+% All four penalised reactions are gone, and the rest stay because their +1 
+% weights reward inclusion.
+% 
+% That last part explains the 87 in the comparison above: with the default weights 
+% of +1 everywhere, tradeOff is asked to include as much as possible, so it keeps 
+% essentially the whole model. tradeOff with default weights is not a useful call. 
+% It only does something meaningful once the weights carry both signs.
+%% growthOptim, for growth
+% Maximises the weighted objective flux minus the weighted absolute flux of 
+% everything else: reward the objective, charge for the rest. Use it when the 
+% extracted model needs to grow, not merely to be feasible.
+% 
+% The reward on an objective reaction is its weight, not its coefficient in 
+% model.c. The objective is used only to find which reactions those are, so the 
+% weight is what controls the trade-off. And unlike the other formulations it 
+% charges for the absolute flux of every non-objective reaction, core reactions 
+% included, not just the ones it is free to drop.
+% 
+% The weight has to be scaled against the model, and this is the part that catches 
+% people out. The reward is weight times objective flux, against a penalty of 
+% one per unit of flux everywhere else, and a genome-scale network at full growth 
+% carries hundreds of units of total flux. If the weight is too small, the optimum 
+% is simply not to grow at all.
+
+for w = [1 100 1000 5000]
+    weights = ones(numel(consistent.rxns), 1);
+    weights(findRxnIDs(consistent, biomass)) = w;
+
+    ex = spectraME(consistent, core, 1e-3, 'stoichiometry', weights, 1, ...
+        'coreDirection', 'growthOptim', [], 0, {}, 0);
+
+    growth = 0;
+    if ismember(biomass, ex.rxns)
+        sol = optimizeCbModel(ex);
+        growth = sol.f;
+    end
+    fprintf('weight %-6g %3d reactions, growth %.4f\n', ...
+        w, numel(ex.rxns), growth);
+end
+%% 
+% Below roughly 1000 the biomass reaction is not even kept and the result is 
+% indistinguishable from minNetLP. Above it, growth jumps straight to the unconstrained 
+% maximum of 0.8739 and the model gains the reactions needed to support it.
+% 
+% Always check that the extracted model actually grows rather than assuming 
+% the formulation arranged it.
+
+sol = optimizeCbModel(ex);
+assert(sol.f > 0, 'growthOptim produced a model that cannot grow');
+fprintf('growth %.4f\n', sol.f);
+%% 
+% A weight of 1000 works here only because this model carries fluxes of order 
+% one and a biomass flux of order one. Scale it to your own model.
+%% A note on minNetDC
+% minNetDC is still accepted but deprecated. It solved the same problem as minNetMILP 
+% through a difference-of-convex-functions relaxation, from the era before MILP 
+% solvers handled these problems well. Use minNetMILP instead.
+%% Which one should I use?
+% Start with minNetLP. It is the default, it is one LP, and for most purposes 
+% a slightly larger model is not a problem.
+% 
+% Use minNetMILP when the model size is the result you care about and you can 
+% afford a MILP.
+% 
+% Use tradeOff when you have signed evidence, and not otherwise. With default 
+% weights it does nothing useful.
+% 
+% Use growthOptim when growth belongs in the objective. Any of them can return 
+% a growing model, by putting biomass in the core set or bounding it, but this 
+% is the one that trades biomass off against total flux.
+%% See also
+% Tutorial_extraction, for the arguments these all share. Tutorial_gapfillForGrowth, 
+% where the choice of formulation decides what gets added. The functions used 
+% here are spectraME, minNet, tradeOff and growthOptim.
+##### SOURCE END #####
+-->
+</div></body></html>

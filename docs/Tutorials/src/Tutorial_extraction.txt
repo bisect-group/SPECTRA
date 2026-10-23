@@ -1,0 +1,157 @@
+# Extracting a context-specific model
+
+Given a universal model and a set of reactions you believe are active in your context, spectraME returns the smallest surrounding network that lets them all carry flux.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## The basic case
+
+Order matters: consistency first, extraction second. spectraME requires a consistent model, because it has to be able to drive every core reaction past tol simultaneously.
+
+```
+model = readCbModel('ecoli_core_model.mat');
+consistentIDs = spectraCC(model, 1e-3);
+blocked = setdiff(1:numel(model.rxns), consistentIDs);
+consistent = removeRxns(model, model.rxns(blocked), 'metFlag', false);
+
+core = findRxnIDs(consistent, {'PGI'});
+extracted = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+
+fprintf('%d reactions, PGI kept: %d\n', ...
+    numel(extracted.rxns), ismember('PGI', extracted.rxns));
+```
+
+From 87 consistent reactions down to 27, with the core reaction in there.
+
+Note that coreRxns is a vector of indices, not names. findRxnIDs converts, and it is worth going through it rather than hard-coding positions, because the indices shift as soon as you remove the blocked reactions.
+
+## The core set grows the model as needed
+
+```
+cores = {{'PGI'}, {'PGI','PFK','FBA'}, {'SUCDi','FUM'}};
+for k = 1:numel(cores)
+    c = cores{k};
+    ex = spectraME(consistent, findRxnIDs(consistent, c), 1e-3, ...
+        'stoichiometry', [], 1, 'coreDirection', 'minNetLP', [], 0, {}, 0);
+    fprintf('%-22s -> %d reactions\n', strjoin(c, ','), numel(ex.rxns));
+end
+```
+
+Adding PFK and FBA to PGI costs nothing: they are on the same glycolytic route, which was already pulled in. Asking for two TCA reactions instead costs ten more, since that part of the network needs more support.
+
+## When the core set is impossible
+
+If no flux distribution lets every core reaction carry tol at once, the extraction fails. The usual cause is a blocked core reaction, which is what happens if you skip the consistency check.
+
+```
+try
+    spectraME(model, findRxnIDs(model, {'PGI','FRUpts2'}), 1e-3);
+catch err
+    fprintf('failed: %s\n', err.message);
+end
+```
+
+FRUpts2 is blocked in the core model's default medium. The other cause is a core set whose reactions are individually fine but mutually incompatible, which no amount of consistency checking will fix.
+
+## Handling an inconsistent universal model
+
+Rather than checking consistency yourself and intersecting the result with your core set, let spectraCCME do both.
+
+```
+[extracted, blockedCore] = spectraCCME(model, ...
+    findRxnIDs(model, {'PGI','FRUpts2'}), 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, 0);
+
+fprintf('%d reactions\n', numel(extracted.rxns));
+fprintf('dropped as blocked: %s\n', strjoin(blockedCore', ', '));
+```
+
+It reports what it dropped rather than failing, which is usually what you want when the core set came from omics data and may name reactions the universal model cannot support. Note that BlockedCoreRxns comes back as names, not indices, even though you passed indices in.
+
+## Weights
+
+Weights steer which reactions get pulled in. They are a vector over all reactions in the model, in model order, and default to ones.
+
+```
+oxygen  = {'EX_o2(e)','O2t','CYTBD'};
+weights = ones(numel(consistent.rxns), 1);
+weights(findRxnIDs(consistent, oxygen)) = 100;   % expensive
+
+ex = spectraME(consistent, core, 1e-3, 'stoichiometry', weights, 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+fprintf('%d reactions, of the oxygen route kept: %s\n', ...
+    numel(ex.rxns), strjoin(intersect(oxygen, ex.rxns)', ', '));
+disp(ex.rxns');
+```
+
+The baseline extraction above was aerobic: it kept oxygen uptake, the transporter and cytochrome oxidase. Charging a hundred for those three makes respiration the expensive option, and the extraction abandons it rather than paying, dropping from 27 reactions to 16 — glycolysis plus lactate dehydrogenase and D-lactate export.
+
+That is a useful thing to notice about weights. They do not merely prune at the edges; a weight large enough to change which route is cheapest will swap one subnetwork for another. Here the result is a sensible fermentative model, but nothing guaranteed that, and a careless weight can just as easily produce a model that no longer does what you assumed.
+
+A vector rather than Python's dict keyed by identifier, so the order has to match the model exactly. Build it with findRxnIDs, never by counting.
+
+What a weight means depends on which formulation you use, and the sign convention is not the same for all of them. See Tutorial_formulations.
+
+## Alternative solutions
+
+A minimal network is rarely unique. nSol asks for several, and the return type changes to a cell array.
+
+```
+sols = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 3, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+
+for i = 1:numel(sols)
+    fprintf('solution %d: %d reactions, PGI kept: %d\n', ...
+        i, numel(sols{i}.rxns), ismember('PGI', sols{i}.rxns));
+end
+fprintf('solutions 1 and 2 identical: %d\n', ...
+    isequal(sort(sols{1}.rxns), sort(sols{2}.rxns)));
+```
+
+Three different networks, all containing the core reaction, and the later two larger than the first. That is expected: the first solution is the minimal one and each subsequent solution is forced away from its predecessors, so it cannot also be minimal.
+
+altSolMethod chooses how. 'coreDirection' flips the direction required of the core reactions and works for every formulation. 'pathwayExclusion' forbids the previous solutions outright and is the stronger of the two, but it needs binaries, so it only works with the MILP formulations.
+
+## Unused genes
+
+Removing reactions can leave genes with nothing to act on. Unlike the Python package, MATLAB keeps them by default.
+
+```
+kept    = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+pruned  = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 1, {}, 0);
+
+fprintf('remGene=0: %d genes\nremGene=1: %d genes\n', ...
+    numel(kept.genes), numel(pruned.genes));
+```
+
+Both models have the same 27 reactions. Only the gene list differs, so turn remGene on if you intend to do anything gene-based with the result, and leave it off if you want the extracted model to stay comparable to the input.
+
+## Reproducibility
+
+The direction phase breaks ties between core reactions with randomised coefficients, so an unseeded run returns a different model each time. The last argument pins them.
+
+```
+a = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+b = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+assert(isequal(sort(a.rxns), sort(b.rxns)));
+disp('seeded runs agree');
+```
+
+As with spectraCC, seeding is opt-in and has no default, so that published results stay reproducible.
+
+## See also
+
+Tutorial_formulations, for what to optimise and what weights mean. Tutorial_consistency, for the step that has to come first. The functions used here are spectraME, spectraCCME and checkExtraction.

@@ -1,0 +1,119 @@
+# Checking consistency
+
+A reaction is blocked if it cannot carry flux in any steady state. A universal model assembled from a database usually has plenty of them, and they matter: spectraME requires a consistent model, and a blocked reaction in your core set makes the extraction infeasible.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## Finding the consistent reactions
+
+spectraCC returns indices, not a model. That is the first difference from the Python package, where spectra_cc hands back a model directly.
+
+```
+model = readCbModel('ecoli_core_model.mat');
+fprintf('%d reactions, %d metabolites\n', numel(model.rxns), numel(model.mets));
+
+[consistentIDs, nLPs] = spectraCC(model, 1e-3);
+fprintf('%d of %d reactions are consistent, found with %d LPs\n', ...
+    numel(consistentIDs), numel(model.rxns), nLPs);
+```
+
+Eight of the 95 reactions cannot carry flux. Four rounds of two LPs each got there.
+
+The LP count is a useful sanity check on a large model: it grows very slowly with model size, so a run that takes many rounds is worth a second look.
+
+## Which reactions were blocked?
+
+```
+blocked = setdiff(1:numel(model.rxns), consistentIDs);
+disp(model.rxns(blocked)');
+```
+
+These are transporters and exchanges for metabolites the core model's default medium does not supply, paired with the uptake reactions that depend on them: fructose, fumarate, glutamine and malate.
+
+## Building the consistent model
+
+Removing them is your job, not spectraCC's, which keeps the function to one question and lets you decide what happens to the orphaned metabolites.
+
+```
+consistent = removeRxns(model, model.rxns(blocked), 'metFlag', false);
+fprintf('%d reactions, %d metabolites\n', ...
+    numel(consistent.rxns), numel(consistent.mets));
+```
+
+'metFlag' is worth a moment. With false, every metabolite stays, including any left without a reaction. With true (the COBRA default) the orphans go too, which is what the Python package does. Neither is wrong, but the two give models of different sizes, so be deliberate about which you want before comparing counts with anyone.
+
+## Choosing tol
+
+tol is the flux threshold: the magnitude the LPs drive reactions towards, and by default also the magnitude a reaction must reach to count as consistent.
+
+Raising it tightens the definition. A reaction whose maximum attainable flux is 1e-5 is consistent at tol=1e-6 and blocked at tol=1e-4. Lowering it does not loosen the test indefinitely, though, and this is the part that bites.
+
+```
+for t = [1e-7 1e-6 1e-5 1e-4 1e-3]
+    fprintf('tol=%-8g %d consistent\n', t, numel(spectraCC(model, t)));
+end
+```
+
+The answer collapses below 1e-5, and it collapses in the wrong direction: the weaker requirement finds fewer consistent reactions, not more. That is not a property of the method. It is the solver.
+
+```
+fprintf('feasTol = %g\n', getCobraSolverParams('LP', {'feasTol'}));
+```
+
+feasTol is 1e-6. Asking whether a reaction can carry 1e-7 of flux asks the solver to distinguish a quantity it does not itself resolve, so the fluxes coming back are noise, and reactions that genuinely do carry flux are not recognised as doing so.
+
+The giveaway is that the collapsed answer is not even stable between runs:
+
+```
+fprintf('tol=1e-6: ');
+for r = 1:5, fprintf('%d ', numel(spectraCC(model, 1e-6))); end
+fprintf('\ntol=1e-5: ');
+for r = 1:5, fprintf('%d ', numel(spectraCC(model, 1e-5))); end
+fprintf('\n');
+```
+
+At 1e-6 the count wanders; at 1e-5 it is 87 every time. So keep tol comfortably above feasTol — an order of magnitude at least. If you genuinely need a smaller threshold, lower feasTol first, with changeCobraSolverParams, and expect the LPs to get slower.
+
+## The detection cutoff
+
+tol does two jobs: it is the flux the LPs aim for, and it is the flux a reaction must reach to be counted. detectionCutoff separates the second from the first. It defaults to 0.99*tol, the stricter of the two criteria available, which also discards reactions that can carry some flux but never as much as tol.
+
+```
+strict  = spectraCC(model, 1e-3);
+relaxed = spectraCC(model, 1e-3, 'stoichiometry', [], 1e-6);
+fprintf('cutoff 0.99*tol: %d consistent\n', numel(strict));
+fprintf('cutoff feasTol:  %d consistent\n', numel(relaxed));
+```
+
+Passing feasTol instead counts any nonzero flux, which is what fastcc does.
+
+Both give 87 here, and that is the ordinary case: the two criteria only part company over reactions whose maximum attainable flux falls between feasTol and tol. The core model has none, because its eight blocked reactions cannot carry any flux at all rather than merely a little. Models assembled from a database are where the narrow band starts to be populated, and where the choice begins to matter.
+
+Which you want depends on whether tol is a meaningful flux magnitude for your problem or just a numerical floor. If tol is a real threshold, keep the default and let it do both jobs; if it is only there to clear the solver, set detectionCutoff to feasTol so you are not also discarding reactions for being slow.
+
+detectionCutoff is the last argument rather than a more natural position next to tol, so that code written against the earlier signature keeps working.
+
+## Reproducibility
+
+The LPs use randomised objective coefficients to break ties between reactions, so the flux distributions differ between runs even though the consistent set does not. Pass a seed to pin them.
+
+```
+a = spectraCC(model, 1e-3, 'stoichiometry', 0);
+b = spectraCC(model, 1e-3, 'stoichiometry', 0);
+assert(isequal(a, b), 'a seeded run should repeat exactly');
+disp('seeded runs agree');
+```
+
+Seeding is opt-in, with no default. That is deliberate: setting one would change the results every published SPECTRA run was produced with.
+
+## See also
+
+Tutorial_topology, for what consistencyType changes and when the accumulation condition is the right question. Tutorial_extraction, for building a context-specific model from the consistent one. The functions used here are spectraCC and removeRxns.

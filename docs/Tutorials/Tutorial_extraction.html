@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2026a"><title>Extracting a context-specific model</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 28.8px; min-height: 0px; white-space: pre; color: rgb(192, 76, 11); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 24px; font-weight: 400; text-align: left;  }
+._richTextNode {white-space: break-spaces;}
+.S1 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S2 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 25px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.CodeBlock { background-color: #F5F5F5; margin: 10px 0 10px 0; }
+.S3 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 1px solid rgb(217, 217, 217); border-bottom: 0px none rgb(33, 33, 33); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S4 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 0px none rgb(33, 33, 33); border-radius: 0px; padding: 0px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 1px solid rgb(217, 217, 217); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }</style></head><body><div class = rtcContent><h1  class = 'S0'><span class="_richTextNode">Extracting a context-specific model</span></h1><div  class = 'S1'><span class="_richTextNode">Given a universal model and a set of reactions you believe are active in your context, spectraME returns the smallest surrounding network that lets them all carry flux.</span></div><h2  class = 'S2'><span class="_richTextNode">Setting up</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >initCobraToolbox(false)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >changeCobraSolver(</span><span style="color: rgb(167, 9, 245);">'gurobi'</span><span >,</span><span style="color: rgb(167, 9, 245);">'all'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% Assumes this live script is run from docs/Tutorials; edit if not.</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >spectraRoot = fileparts(fileparts(pwd));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >addpath(genpath(fullfile(spectraRoot,</span><span style="color: rgb(167, 9, 245);">'src'</span><span >)));</span></span></div></div></div><h2  class = 'S2'><span class="_richTextNode">The basic case</span></h2><div  class = 'S1'><span class="_richTextNode">Order matters: consistency first, extraction second. spectraME requires a consistent model, because it has to be able to drive every core reaction past tol simultaneously.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >model = readCbModel(</span><span style="color: rgb(167, 9, 245);">'ecoli_core_model.mat'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >consistentIDs = spectraCC(model, 1e-3);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >blocked = setdiff(1:numel(model.rxns), consistentIDs);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >consistent = removeRxns(model, model.rxns(blocked), </span><span style="color: rgb(167, 9, 245);">'metFlag'</span><span >, false);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >core = findRxnIDs(consistent, {</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >});</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >extracted = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'%d reactions, PGI kept: %d\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    numel(extracted.rxns), ismember(</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >, extracted.rxns));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">From 87 consistent reactions down to 27, with the core reaction in there.</span></div><div  class = 'S1'><span class="_richTextNode">Note that coreRxns is a vector of indices, not names. findRxnIDs converts, and it is worth going through it rather than hard-coding positions, because the indices shift as soon as you remove the blocked reactions.</span></div><h2  class = 'S2'><span class="_richTextNode">The core set grows the model as needed</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >cores = {{</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >}, {</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >,</span><span style="color: rgb(167, 9, 245);">'PFK'</span><span >,</span><span style="color: rgb(167, 9, 245);">'FBA'</span><span >}, {</span><span style="color: rgb(167, 9, 245);">'SUCDi'</span><span >,</span><span style="color: rgb(167, 9, 245);">'FUM'</span><span >}};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">for </span><span >k = 1:numel(cores)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    c = cores{k};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    ex = spectraME(consistent, findRxnIDs(consistent, c), 1e-3, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'%-22s -&gt; %d reactions\n'</span><span >, strjoin(c, </span><span style="color: rgb(167, 9, 245);">','</span><span >), numel(ex.rxns));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Adding PFK and FBA to PGI costs nothing: they are on the same glycolytic route, which was already pulled in. Asking for two TCA reactions instead costs ten more, since that part of the network needs more support.</span></div><h2  class = 'S2'><span class="_richTextNode">When the core set is impossible</span></h2><div  class = 'S1'><span class="_richTextNode">If no flux distribution lets every core reaction carry tol at once, the extraction fails. The usual cause is a blocked core reaction, which is what happens if you skip the consistency check.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">try</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    spectraME(model, findRxnIDs(model, {</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >,</span><span style="color: rgb(167, 9, 245);">'FRUpts2'</span><span >}), 1e-3);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">catch </span><span >err</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'failed: %s\n'</span><span >, err.message);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">FRUpts2 is blocked in the core model's default medium. The other cause is a core set whose reactions are individually fine but mutually incompatible, which no amount of consistency checking will fix.</span></div><h2  class = 'S2'><span class="_richTextNode">Handling an inconsistent universal model</span></h2><div  class = 'S1'><span class="_richTextNode">Rather than checking consistency yourself and intersecting the result with your core set, let spectraCCME do both.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >[extracted, blockedCore] = spectraCCME(model, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    findRxnIDs(model, {</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >,</span><span style="color: rgb(167, 9, 245);">'FRUpts2'</span><span >}), 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'%d reactions\n'</span><span >, numel(extracted.rxns));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'dropped as blocked: %s\n'</span><span >, strjoin(blockedCore', </span><span style="color: rgb(167, 9, 245);">', '</span><span >));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">It reports what it dropped rather than failing, which is usually what you want when the core set came from omics data and may name reactions the universal model cannot support. Note that BlockedCoreRxns comes back as names, not indices, even though you passed indices in.</span></div><h2  class = 'S2'><span class="_richTextNode">Weights</span></h2><div  class = 'S1'><span class="_richTextNode">Weights steer which reactions get pulled in. They are a vector over all reactions in the model, in model order, and default to ones.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >oxygen  = {</span><span style="color: rgb(167, 9, 245);">'EX_o2(e)'</span><span >,</span><span style="color: rgb(167, 9, 245);">'O2t'</span><span >,</span><span style="color: rgb(167, 9, 245);">'CYTBD'</span><span >};</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >weights = ones(numel(consistent.rxns), 1);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >weights(findRxnIDs(consistent, oxygen)) = 100;   </span><span style="color: rgb(0, 128, 19);">% expensive</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >ex = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, weights, 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'%d reactions, of the oxygen route kept: %s\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    numel(ex.rxns), strjoin(intersect(oxygen, ex.rxns)', </span><span style="color: rgb(167, 9, 245);">', '</span><span >));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >disp(ex.rxns');</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">The baseline extraction above was aerobic: it kept oxygen uptake, the transporter and cytochrome oxidase. Charging a hundred for those three makes respiration the expensive option, and the extraction abandons it rather than paying, dropping from 27 reactions to 16 — glycolysis plus lactate dehydrogenase and D-lactate export.</span></div><div  class = 'S1'><span class="_richTextNode">That is a useful thing to notice about weights. They do not merely prune at the edges; a weight large enough to change which route is cheapest will swap one subnetwork for another. Here the result is a sensible fermentative model, but nothing guaranteed that, and a careless weight can just as easily produce a model that no longer does what you assumed.</span></div><div  class = 'S1'><span class="_richTextNode">A vector rather than Python's dict keyed by identifier, so the order has to match the model exactly. Build it with findRxnIDs, never by counting.</span></div><div  class = 'S1'><span class="_richTextNode">What a weight means depends on which formulation you use, and the sign convention is not the same for all of them. See Tutorial_formulations.</span></div><h2  class = 'S2'><span class="_richTextNode">Alternative solutions</span></h2><div  class = 'S1'><span class="_richTextNode">A minimal network is rarely unique. nSol asks for several, and the return type changes to a cell array.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >sols = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 3, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">for </span><span >i = 1:numel(sols)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'solution %d: %d reactions, PGI kept: %d\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        i, numel(sols{i}.rxns), ismember(</span><span style="color: rgb(167, 9, 245);">'PGI'</span><span >, sols{i}.rxns));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'solutions 1 and 2 identical: %d\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    isequal(sort(sols{1}.rxns), sort(sols{2}.rxns)));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Three different networks, all containing the core reaction, and the later two larger than the first. That is expected: the first solution is the minimal one and each subsequent solution is forced away from its predecessors, so it cannot also be minimal.</span></div><div  class = 'S1'><span class="_richTextNode">altSolMethod chooses how. 'coreDirection' flips the direction required of the core reactions and works for every formulation. 'pathwayExclusion' forbids the previous solutions outright and is the stronger of the two, but it needs binaries, so it only works with the MILP formulations.</span></div><h2  class = 'S2'><span class="_richTextNode">Unused genes</span></h2><div  class = 'S1'><span class="_richTextNode">Removing reactions can leave genes with nothing to act on. Unlike the Python package, MATLAB keeps them by default.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >kept    = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >pruned  = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 1, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'remGene=0: %d genes\nremGene=1: %d genes\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    numel(kept.genes), numel(pruned.genes));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Both models have the same 27 reactions. Only the gene list differs, so turn remGene on if you intend to do anything gene-based with the result, and leave it off if you want the extracted model to stay comparable to the input.</span></div><h2  class = 'S2'><span class="_richTextNode">Reproducibility</span></h2><div  class = 'S1'><span class="_richTextNode">The direction phase breaks ties between core reactions with randomised coefficients, so an unseeded run returns a different model each time. The last argument pins them.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >a = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >b = spectraME(consistent, core, 1e-3, </span><span style="color: rgb(167, 9, 245);">'stoichiometry'</span><span >, [], 1, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'coreDirection'</span><span >, </span><span style="color: rgb(167, 9, 245);">'minNetLP'</span><span >, [], 0, {}, 0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >assert(isequal(sort(a.rxns), sort(b.rxns)));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >disp(</span><span style="color: rgb(167, 9, 245);">'seeded runs agree'</span><span >);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">As with spectraCC, seeding is opt-in and has no default, so that published results stay reproducible.</span></div><h2  class = 'S2'><span class="_richTextNode">See also</span></h2><div  class = 'S1'><span class="_richTextNode">Tutorial_formulations, for what to optimise and what weights mean. Tutorial_consistency, for the step that has to come first. The functions used here are spectraME, spectraCCME and checkExtraction.</span></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Extracting a context-specific model
+% Given a universal model and a set of reactions you believe are active in your 
+% context, spectraME returns the smallest surrounding network that lets them all 
+% carry flux.
+%% Setting up
+
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+%% The basic case
+% Order matters: consistency first, extraction second. spectraME requires a 
+% consistent model, because it has to be able to drive every core reaction past 
+% tol simultaneously.
+
+model = readCbModel('ecoli_core_model.mat');
+consistentIDs = spectraCC(model, 1e-3);
+blocked = setdiff(1:numel(model.rxns), consistentIDs);
+consistent = removeRxns(model, model.rxns(blocked), 'metFlag', false);
+
+core = findRxnIDs(consistent, {'PGI'});
+extracted = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+
+fprintf('%d reactions, PGI kept: %d\n', ...
+    numel(extracted.rxns), ismember('PGI', extracted.rxns));
+%% 
+% From 87 consistent reactions down to 27, with the core reaction in there.
+% 
+% Note that coreRxns is a vector of indices, not names. findRxnIDs converts, 
+% and it is worth going through it rather than hard-coding positions, because 
+% the indices shift as soon as you remove the blocked reactions.
+%% The core set grows the model as needed
+
+cores = {{'PGI'}, {'PGI','PFK','FBA'}, {'SUCDi','FUM'}};
+for k = 1:numel(cores)
+    c = cores{k};
+    ex = spectraME(consistent, findRxnIDs(consistent, c), 1e-3, ...
+        'stoichiometry', [], 1, 'coreDirection', 'minNetLP', [], 0, {}, 0);
+    fprintf('%-22s -> %d reactions\n', strjoin(c, ','), numel(ex.rxns));
+end
+%% 
+% Adding PFK and FBA to PGI costs nothing: they are on the same glycolytic route, 
+% which was already pulled in. Asking for two TCA reactions instead costs ten 
+% more, since that part of the network needs more support.
+%% When the core set is impossible
+% If no flux distribution lets every core reaction carry tol at once, the extraction 
+% fails. The usual cause is a blocked core reaction, which is what happens if 
+% you skip the consistency check.
+
+try
+    spectraME(model, findRxnIDs(model, {'PGI','FRUpts2'}), 1e-3);
+catch err
+    fprintf('failed: %s\n', err.message);
+end
+%% 
+% FRUpts2 is blocked in the core model's default medium. The other cause is 
+% a core set whose reactions are individually fine but mutually incompatible, 
+% which no amount of consistency checking will fix.
+%% Handling an inconsistent universal model
+% Rather than checking consistency yourself and intersecting the result with 
+% your core set, let spectraCCME do both.
+
+[extracted, blockedCore] = spectraCCME(model, ...
+    findRxnIDs(model, {'PGI','FRUpts2'}), 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, 0);
+
+fprintf('%d reactions\n', numel(extracted.rxns));
+fprintf('dropped as blocked: %s\n', strjoin(blockedCore', ', '));
+%% 
+% It reports what it dropped rather than failing, which is usually what you 
+% want when the core set came from omics data and may name reactions the universal 
+% model cannot support. Note that BlockedCoreRxns comes back as names, not indices, 
+% even though you passed indices in.
+%% Weights
+% Weights steer which reactions get pulled in. They are a vector over all reactions 
+% in the model, in model order, and default to ones.
+
+oxygen  = {'EX_o2(e)','O2t','CYTBD'};
+weights = ones(numel(consistent.rxns), 1);
+weights(findRxnIDs(consistent, oxygen)) = 100;   % expensive
+
+ex = spectraME(consistent, core, 1e-3, 'stoichiometry', weights, 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+fprintf('%d reactions, of the oxygen route kept: %s\n', ...
+    numel(ex.rxns), strjoin(intersect(oxygen, ex.rxns)', ', '));
+disp(ex.rxns');
+%% 
+% The baseline extraction above was aerobic: it kept oxygen uptake, the transporter 
+% and cytochrome oxidase. Charging a hundred for those three makes respiration 
+% the expensive option, and the extraction abandons it rather than paying, dropping 
+% from 27 reactions to 16 — glycolysis plus lactate dehydrogenase and D-lactate 
+% export.
+% 
+% That is a useful thing to notice about weights. They do not merely prune at 
+% the edges; a weight large enough to change which route is cheapest will swap 
+% one subnetwork for another. Here the result is a sensible fermentative model, 
+% but nothing guaranteed that, and a careless weight can just as easily produce 
+% a model that no longer does what you assumed.
+% 
+% A vector rather than Python's dict keyed by identifier, so the order has to 
+% match the model exactly. Build it with findRxnIDs, never by counting.
+% 
+% What a weight means depends on which formulation you use, and the sign convention 
+% is not the same for all of them. See Tutorial_formulations.
+%% Alternative solutions
+% A minimal network is rarely unique. nSol asks for several, and the return 
+% type changes to a cell array.
+
+sols = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 3, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+
+for i = 1:numel(sols)
+    fprintf('solution %d: %d reactions, PGI kept: %d\n', ...
+        i, numel(sols{i}.rxns), ismember('PGI', sols{i}.rxns));
+end
+fprintf('solutions 1 and 2 identical: %d\n', ...
+    isequal(sort(sols{1}.rxns), sort(sols{2}.rxns)));
+%% 
+% Three different networks, all containing the core reaction, and the later 
+% two larger than the first. That is expected: the first solution is the minimal 
+% one and each subsequent solution is forced away from its predecessors, so it 
+% cannot also be minimal.
+% 
+% altSolMethod chooses how. 'coreDirection' flips the direction required of 
+% the core reactions and works for every formulation. 'pathwayExclusion' forbids 
+% the previous solutions outright and is the stronger of the two, but it needs 
+% binaries, so it only works with the MILP formulations.
+%% Unused genes
+% Removing reactions can leave genes with nothing to act on. Unlike the Python 
+% package, MATLAB keeps them by default.
+
+kept    = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+pruned  = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 1, {}, 0);
+
+fprintf('remGene=0: %d genes\nremGene=1: %d genes\n', ...
+    numel(kept.genes), numel(pruned.genes));
+%% 
+% Both models have the same 27 reactions. Only the gene list differs, so turn 
+% remGene on if you intend to do anything gene-based with the result, and leave 
+% it off if you want the extracted model to stay comparable to the input.
+%% Reproducibility
+% The direction phase breaks ties between core reactions with randomised coefficients, 
+% so an unseeded run returns a different model each time. The last argument pins 
+% them.
+
+a = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+b = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    'coreDirection', 'minNetLP', [], 0, {}, 0);
+assert(isequal(sort(a.rxns), sort(b.rxns)));
+disp('seeded runs agree');
+%% 
+% As with spectraCC, seeding is opt-in and has no default, so that published 
+% results stay reproducible.
+%% See also
+% Tutorial_formulations, for what to optimise and what weights mean. Tutorial_consistency, 
+% for the step that has to come first. The functions used here are spectraME, 
+% spectraCCME and checkExtraction.
+##### SOURCE END #####
+-->
+</div></body></html>

@@ -1,0 +1,135 @@
+# Gap-filling towards growth in a medium
+
+A draft reconstruction usually cannot do everything the organism can. This tutorial closes the difference against a growth requirement: the model must grow in each of a panel of media.
+
+That is the setting of a Biolog-style phenotyping experiment. You know which carbon sources the organism grows on, your draft fails on some of them, and you want the smallest set of additions that fixes every one.
+
+## The shape of the problem
+
+For each medium: close every exchange, open the ones the medium names, and demand growth. Then ask the extraction for the cheapest set of reactions that makes it feasible, charging nothing for what the draft already has.
+
+The core set is just the biomass reaction. Everything else follows from the bound placed on it, which is the part most worth understanding — see "Growth is a bound, not a tolerance" below.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## A worked example
+
+The textbook E. coli core model, across three carbon sources.
+
+```
+model = readCbModel('ecoli_core_model.mat');
+universal = model;
+biomass = universal.rxns{universal.c ~= 0};
+
+SALTS  = {'EX_pi(e)','EX_h2o(e)','EX_h(e)','EX_nh4(e)','EX_o2(e)','EX_co2(e)'};
+CARBON = {'EX_glc(e)','EX_ac(e)','EX_succ(e)'};
+```
+
+A medium is a set of exchange reactions to open and the lower bound to open each to. Everything not named is closed, and that matters: a medium is defined as much by what it withholds as by what it supplies, and a model's default bounds usually leave far more open than you intend.
+
+```
+media = struct('label',{},'rxns',{},'lb',{});
+for i = 1:numel(CARBON)
+    media(i).label = CARBON{i};
+    media(i).rxns  = [SALTS, CARBON(i)];
+    media(i).lb    = [-1000*ones(1,numel(SALTS)), -10];
+end
+```
+
+## A draft with gaps
+
+Knock four reactions out, and it grows nowhere.
+
+```
+knock = {'ENO','ACONTb','SUCDi','NH4t'};
+draft = removeRxns(universal, knock, 'metFlag', false);
+fprintf('draft: %d reactions, universal: %d\n', ...
+    numel(draft.rxns), numel(universal.rxns));
+```
+
+## Gap-fill
+
+One call. Media are worked through in order, and what one medium adds is free for the next, so the panel is filled jointly rather than independently.
+
+```
+result = gapfillForGrowth(draft, universal, media, 0.1, biomass);
+
+disp(result.summary)
+fprintf('added: %s\n', strjoin(result.added', ', '));
+```
+
+All four holes come back and the model grows in 3 of 3 media:
+
+```
+% 4 reactions added to a 91-reaction draft
+%   grows in 3 of 3 media
+% added: ACONTb, ENO, NH4t, SUCDi
+```
+
+On a draft this small the answer is exactly what was removed. At genome scale it will not be, which is the subject of a later section.
+
+## Growth is a bound, not a tolerance
+
+minGrowth puts a lower bound on the biomass reaction. tol stays at whatever any other extraction would use.
+
+The alternative — making biomass the core reaction and raising tol to the growth rate — appears to work and does not. tol is the flux every core reaction must carry, so setting it to 0.1 to mean "grow at 0.1" also demands 0.1 through every other core reaction you name, which is rarely what you meant. Keeping the two apart also makes the answer stop moving with the tolerance:
+
+```
+for tol = [1e-3 1e-4 1e-5]
+    r = gapfillForGrowth(draft, universal, media, 0.1, biomass, tol);
+    fprintf('tol=%.0e -> %d reactions added\n', tol, numel(r.added));
+end
+```
+
+## Why the essential reactions are free, not core
+
+In the tasks tutorial the essential reactions become the core set. Here they do not, and the difference is what is being required.
+
+There, the task is the requirement and cannot be written as a constraint, so it has to be converted into reactions that must be present. Here, growth is a constraint already — a bound on one reaction — so there is nothing to convert. Reactions known to be essential for growth are still worth naming, but as reactions that cost nothing to include rather than ones forced in. That is what freeRxns is for:
+
+```
+% essential = ... % e.g. by single reaction deletion in each medium
+% result = gapfillForGrowth(draft, universal, media, 0.1, biomass, ...
+%                           1e-4, 'minNetMILP', essential);
+```
+
+Forcing them in instead would over-constrain the problem, since a reaction essential in one medium need not be essential in another.
+
+## At genome scale
+
+The same workflow on iJO1366 across twelve M9 carbon sources — glucose, acetate, succinate, glycerol, galactose, malate, fumarate, pyruvate, ribose, xylose, fructose and lactate — with a draft made by deleting 150 random non-exchange reactions. Measured with Gurobi:
+
+```
+%                                Reactions   Added   Media grown in
+%   universal                         2583       -          12 / 12
+%   draft                             2433       -           0 / 12
+%   gap-filled (minNetMILP)           2451      18          12 / 12
+```
+
+About a second. Eighteen reactions, where 150 were removed: the draft is repaired, not restored. Every one of the 18 was among the 150, but the other 132 were never needed to grow in these media, so nothing asks for them back.
+
+That is the central caveat of gap-filling towards growth. It gives you a model that grows, not the model you started from. If you want the rest back, growth is not the requirement to use — tasks are.
+
+## Why not tradeOff
+
+gapfillForGrowth refuses problemType 'tradeOff' rather than letting it fail at solve time. tradeOff requires every included reaction to carry at least tol, and a growth solution needs trace fluxes far below that, so it is infeasible at every tolerance, with or without the growth bound.
+
+```
+try
+    gapfillForGrowth(draft, universal, media, 0.1, biomass, 1e-4, 'tradeOff');
+catch err
+    fprintf('refused, as it should be: %s\n', err.identifier);
+end
+```
+
+## See also
+
+Tutorial_gapfillForTasks, for the same idea with tasks as the requirement. The functions used here are gapfillForGrowth, spectraME and checkExtraction.

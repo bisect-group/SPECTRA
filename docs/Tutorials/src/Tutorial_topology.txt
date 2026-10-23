@@ -1,0 +1,133 @@
+# Topology or stoichiometry
+
+Every routine takes consistencyType, which chooses what "can carry flux" means.
+
+'stoichiometry', the default, is the usual steady state, S*v = 0: everything produced is consumed. 'topology' is an accumulation condition, S*v >= 0: metabolites may pile up, but may not appear from nothing.
+
+Topology is the weaker requirement, so it never finds fewer consistent reactions. It is what topology-based gap filling uses, where the question is whether a route to a metabolite exists at all rather than whether the whole network balances.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## A network the steady state rejects
+
+This is figure 2a of the Meneco article, and the toy model SPECTRA's own experiment uses. Six irreversible reactions: S enters, splits into b and n copies of a, and the branches recombine through d and c into the target T1, which leaves. Only r2 carries a coefficient other than one.
+
+```
+toyIDs = {'r1','r2','r3','r4','r5','r6'};
+
+for n = 1:3
+    formulas = {' -> S[c]', sprintf('S[c] -> b[c] + %d a[c]', n), ...
+                'b[c] + a[c] -> d[c]', 'a[c] -> c[c]', ...
+                'd[c] + c[c] -> T1[c]', 'T1[c] -> '};
+
+    m = createModel();
+    for i = 1:numel(toyIDs)
+        m = addReaction(m, toyIDs{i}, 'reactionFormula', formulas{i}, ...
+            'lowerBound', 0, 'upperBound', 1000, 'printLevel', 0);
+    end
+
+    nSteady = numel(spectraCC(m, 1e-4, 'stoichiometry'));
+    nAccum  = numel(spectraCC(m, 1e-4, 'topology'));
+    fprintf('n=%d: stoichiometry %d/6, topology %d/6\n', n, nSteady, nAccum);
+end
+```
+
+The compartment suffixes are not decoration. A metabolite named plainly b collides with addReaction's own 'b' name-value argument, and the call fails with "No value was given for 'b'" rather than anything about metabolites. Suffixing every metabolite avoids the whole class of problem.
+
+Not a rounding artefact. Chase the mass balances through and they force v2*(n-2) = 0, so at steady state the entire network is dead unless n is exactly 2. Relax the balances to inequalities and every n works, because the surplus a is then allowed to accumulate instead of having to be consumed exactly.
+
+## What topology will and will not rescue
+
+The weaker condition is not a free pass. S*v >= 0 lets a metabolite pile up; it does not let one appear from nothing. These two networks differ only in the direction of r3.
+
+```
+produced = {' -> A[c]','A[c] -> B[c]','B[c] -> C[c]','B[c] -> D[c]', ...
+            'D[c] -> ','A[c] -> E[c]','E[c] -> F[c]','F[c] -> D[c]'};
+consumed = {' -> A[c]','A[c] -> B[c]','C[c] -> B[c]','B[c] -> D[c]', ...
+            'D[c] -> ','A[c] -> E[c]','E[c] -> F[c]','F[c] -> D[c]'};
+```
+
+In the first, C is produced by r3 and consumed by nothing. In the second, C is consumed by r3 and produced by nothing. Everything else is identical.
+
+```
+ids = {'r1','r2','r3','r4','r5','r6','r7','r8'};
+labels = {'C produced, never consumed', 'C consumed, never produced'};
+variants = {produced, consumed};
+
+for k = 1:2
+    m = createModel();
+    for i = 1:numel(ids)
+        m = addReaction(m, ids{i}, 'reactionFormula', variants{k}{i}, ...
+            'lowerBound', 0, 'upperBound', 1000, 'printLevel', 0);
+    end
+    steady = m.rxns(spectraCC(m, 1e-4, 'stoichiometry'));
+    accum  = m.rxns(spectraCC(m, 1e-4, 'topology'));
+    fprintf('%-28s stoichiometry %d/8, topology %d/8 (blocked: %s)\n', ...
+        labels{k}, numel(steady), numel(accum), ...
+        strjoin(setdiff(ids, accum), ', '));
+end
+```
+
+The first is rescued: letting C accumulate is exactly what it needed. The second is not, and cannot be. For that metabolite the balance reads -v3 >= 0, which together with v3 >= 0 still forces v3 = 0.
+
+So if topology mode does not unblock a reaction you expected it to, check whether the gap is a missing consumer, which it fixes, or a missing producer, which it does not. For a missing producer there is nothing to relax; you need the producing reaction.
+
+## Extraction in topology mode
+
+consistencyType works the same way on the extraction routines.
+
+```
+formulas = {' -> S[c]', 'S[c] -> b[c] + 1 a[c]', 'b[c] + a[c] -> d[c]', ...
+            'a[c] -> c[c]', 'd[c] + c[c] -> T1[c]', 'T1[c] -> '};
+m = createModel();
+for i = 1:numel(toyIDs)
+    m = addReaction(m, toyIDs{i}, 'reactionFormula', formulas{i}, ...
+        'lowerBound', 0, 'upperBound', 1000, 'printLevel', 0);
+end
+
+[ex, blockedCore] = spectraCCME(m, findRxnIDs(m, {'r6'}), 1e-4, ...
+    'topology', [], 1, 'coreDirection', 'minNetLP', [], 0, 0);
+fprintf('topology: %d reactions, blocked core: {%s}\n', ...
+    numel(ex.rxns), strjoin(blockedCore', ', '));
+
+[ex2, blockedCore2] = spectraCCME(m, findRxnIDs(m, {'r6'}), 1e-4, ...
+    'stoichiometry', [], 1, 'coreDirection', 'minNetLP', [], 0, 0);
+fprintf('stoichiometry: %d reactions, blocked core: {%s}\n', ...
+    numel(ex2.rxns), strjoin(blockedCore2', ', '));
+```
+
+Under the steady state the same call reports r6 as blocked and returns an empty model, since nothing in that network can carry flux at n=1.
+
+Both of these results are asserted in the test suite, in testExtraction, as are the toy network counts above in testSpectraCC.
+
+## On the real model
+
+On a model that is already well formed the two conditions often agree, and the difference is in the work rather than the answer.
+
+```
+model = readCbModel('ecoli_core_model.mat');
+[s, sLPs] = spectraCC(model, 1e-3, 'stoichiometry');
+[t, tLPs] = spectraCC(model, 1e-3, 'topology');
+fprintf('stoichiometry %d consistent in %d LPs\n', numel(s), sLPs);
+fprintf('topology      %d consistent in %d LPs\n', numel(t), tLPs);
+```
+
+Same 87 reactions either way, since the eight blocked ones are blocked for want of a supplied metabolite rather than for want of a balance. Topology gets there in fewer LPs because the relaxed problem converges sooner.
+
+That agreement is not something to count on in general. It is what a curated model looks like; a draft assembled from a database is where the two part company.
+
+## References
+
+Prigent, S., Frioux, C., Dittami, S. M., Thiele, S., Larhlimi, A., Collet, G., Gutknecht, F., Got, J., Eveillard, D., Bourdon, J., Plewniak, F., Tonon, T., and Siegel, A. (2017). Meneco, a topology-based gap-filling tool applicable to degraded genome-wide metabolic networks. PLoS Computational Biology, 13(1), e1005276.
+
+## See also
+
+Tutorial_consistency, for the consistency check in general. Tutorial_extraction, for building a context-specific model. The functions used here are spectraCC and spectraCCME.
