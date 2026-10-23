@@ -101,6 +101,7 @@ end
 while any(temp_core)
     LPS = LPS+1;
     [flux1,~] = forward(model,temp_core,tol,steadystate);
+    assertCoreFeasible(flux1,sum(coreRxns),tol);
     if sum(abs(flux))==0
         flux = flux1;
     else
@@ -113,6 +114,7 @@ while any(temp_core)
     end
     LPS = LPS+1;
     [flux2,~] = reverse(model,temp_core,tol,steadystate);
+    assertCoreFeasible(flux2,sum(coreRxns),tol);
     c1=unifrnd(0.45,0.55,1);
     flux = (c1*flux)+((1-c1)*flux2);
     temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
@@ -176,6 +178,7 @@ if nSol>1
                 else
                     [flux1,~] = reverse(model,temp_core,tol,steadystate);
                 end
+                assertCoreFeasible(flux1,sum(coreRxns),tol);
                 if sum(abs(flux))==0
                     flux = flux1;
                 else
@@ -192,6 +195,7 @@ if nSol>1
                 else
                     [flux2,~] = forward(model,temp_core,tol,steadystate);
                 end
+                assertCoreFeasible(flux2,sum(coreRxns),tol);
                 c1=unifrnd(0.45,0.55,1);
                 flux = (c1*flux)+((1-c1)*flux2);
                 temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
@@ -257,4 +261,22 @@ if nSol>1
             Model = [Model;Mod];
         end
     end
+end
+
+
+function assertCoreFeasible(flux,nCore,tol)
+% Stops a direction LP that came back infeasible from becoming a hang.
+%
+% forward and reverse return an all-NaN flux vector when their LP has no
+% solution. NaN fails every comparison, so the caller's loop clears no core
+% reaction, `while any(temp_core)` never exits, and the run spins emitting a
+% warning per iteration instead of stopping. Checking here turns that into a
+% message saying what to do about it.
+if any(isnan(flux))
+    error('spectraME:infeasibleCore', ...
+        ['No flux distribution lets all %d core reactions carry at least ' ...
+         'tol=%g at once. Either the core set is mutually inconsistent, or ' ...
+         'some of its reactions are blocked in this model. spectraCCME ' ...
+         'handles the latter by dropping them and returning them as ' ...
+         'BlockedCoreRxns.'], nCore, tol);
 end

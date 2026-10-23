@@ -35,6 +35,70 @@ assert(numel(topo) >= numel(steady), ...
     'topology found %d consistent reactions against stoichiometry''s %d; it is the weaker requirement and cannot find fewer', ...
     numel(topo), numel(steady));
 
+%% the steady state rejects a network that accumulation accepts
+% Figure 2a of the Meneco article, with the coefficient n on the second
+% reaction. The mass balances force v2*(n-2) == 0, so at steady state the
+% whole network is dead unless n is exactly 2, while the accumulation
+% condition lets the surplus pile up and accepts every n. Tutorial_topology
+% works through this.
+toyIDs = {'r1','r2','r3','r4','r5','r6'};
+for n = 1:3
+    formulas = {' -> S[c]', sprintf('S[c] -> b[c] + %d a[c]', n), ...
+                'b[c] + a[c] -> d[c]', 'a[c] -> c[c]', ...
+                'd[c] + c[c] -> T1[c]', 'T1[c] -> '};
+    % The compartment suffixes matter: a metabolite named plainly b
+    % collides with addReaction's own 'b' name-value argument.
+    toy = createModel();
+    for i = 1:numel(toyIDs)
+        toy = addReaction(toy, toyIDs{i}, 'reactionFormula', formulas{i}, ...
+            'lowerBound', 0, 'upperBound', 1000, 'printLevel', 0);
+    end
+
+    nSteady = numel(spectraCC(toy, 1e-4, 'stoichiometry', 0));
+    nAccum = numel(spectraCC(toy, 1e-4, 'topology', 0));
+
+    expected = 0;
+    if n == 2
+        expected = 6;
+    end
+    assert(nSteady == expected, ...
+        'at n=%d the steady state should accept %d of 6 reactions, not %d', ...
+        n, expected, nSteady);
+    assert(nAccum == 6, ...
+        'at n=%d accumulation should accept all 6 reactions, not %d', n, nAccum);
+end
+
+%% accumulation rescues a missing consumer but not a missing producer
+% The two networks differ only in the direction of r3. Where C is produced
+% and never consumed, letting it accumulate unblocks r3. Where C is consumed
+% and never produced, the balance reads -v3 >= 0, which with v3 >= 0 still
+% forces v3 == 0, so nothing can rescue it.
+ids8 = {'r1','r2','r3','r4','r5','r6','r7','r8'};
+variants = { ...
+    {' -> A[c]','A[c] -> B[c]','B[c] -> C[c]','B[c] -> D[c]', ...
+     'D[c] -> ','A[c] -> E[c]','E[c] -> F[c]','F[c] -> D[c]'}, ...
+    {' -> A[c]','A[c] -> B[c]','C[c] -> B[c]','B[c] -> D[c]', ...
+     'D[c] -> ','A[c] -> E[c]','E[c] -> F[c]','F[c] -> D[c]'}};
+expectedAccum = [8 7];
+
+for k = 1:2
+    net = createModel();
+    for i = 1:numel(ids8)
+        net = addReaction(net, ids8{i}, 'reactionFormula', variants{k}{i}, ...
+            'lowerBound', 0, 'upperBound', 1000, 'printLevel', 0);
+    end
+
+    nSteady = numel(spectraCC(net, 1e-4, 'stoichiometry', 0));
+    accum = net.rxns(spectraCC(net, 1e-4, 'topology', 0));
+
+    assert(nSteady == 7, ...
+        'variant %d: the steady state should block r3 alone, leaving 7, not %d', ...
+        k, nSteady);
+    assert(numel(accum) == expectedAccum(k), ...
+        'variant %d: accumulation should accept %d of 8 reactions, not %d', ...
+        k, expectedAccum(k), numel(accum));
+end
+
 %% an unrecognised consistencyType is refused
 caught = false;
 try
