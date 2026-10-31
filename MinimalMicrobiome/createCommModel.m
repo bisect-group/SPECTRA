@@ -41,6 +41,31 @@ function [modelCom,infoCom,indCom, msg] = createCommModel(modelCell, options)
 %               Default to include all fields starting with 'comp'
 %     verbFlag: true to print messages and warnings (default true)
 %
+%   (ported from build_community_model in spectra-cobra, community.py)
+%     metaboliteKey: function handle mapping a cell array of metabolite names
+%               to the name of the compound each one IS, so organisms that
+%               spell a compound differently still meet in the pool.
+%               Default strips one trailing [compartment].
+%     couple:   true to bound every reaction of an organism by its own
+%               biomass flux, so a non-growing organism cannot run its
+%               metabolism and feed the others (default true).
+%               SET THIS FALSE FOR FLUX CONSISTENCY WORK - coupling adds
+%               constraints that can make a reaction blocked which the
+%               uncoupled network carries perfectly well, so leaving it on
+%               measures the coupling rather than the network.
+%     couplingFactor: flux allowed per unit of biomass flux (default 1000)
+%     couplingThreshold: flux allowed at zero biomass flux (default 0.01)
+%     poolMedium: containers.Map from community metabolite name (no
+%               compartment tag) to [lb ub] on its community exchange,
+%               applied during the build. Metabolites not named keep their
+%               default bounds.
+%     check:    true to measure each biomass reaction and warn when
+%               couplingFactor would throttle its organism (default true).
+%               Costs one LP per organism.
+%
+% metExId also accepts a cell array with one identifier per organism, since
+% organisms need not agree on what the extracellular compartment is called.
+%
 %OUTPUT
 % modelCom:     COBRA community model with the following extra fields
 %               'infoCom' and 'indCom', which are also outputed as separate
@@ -81,8 +106,51 @@ if ~exist('options', 'var')
     options = struct();
 end
 %get parameters
-[spAbbr,spName,spBm,spATPM,metExId,rxnField,metField,geneField,compField,sepUtEx,addExRxns,verbFlag] = getCobraComParams(...
-    {'spAbbr','spName','spBm','spATPM','metExId','rxnField','metField','geneField','compField','sepUtEx','addExRxns','verbFlag'}, options);
+%
+% Defaults are inlined rather than fetched from getCobraComParams, which no
+% longer exists in the COBRA Toolbox. Its nearest descendant,
+% SteadyComSubroutines('getParams',...), only carries defaults for SteadyCom's
+% SIMULATION parameters (GRtol, feasCrit, algorithm, ...) and returns EMPTY for
+% every model-joining parameter used here. Forwarding to it would silently
+% build a different community: metExId empty switches the rule for what counts
+% as extracellular, and empty sepUtEx/addExRxns are falsy, flipping two
+% documented true defaults. The values below are the ones this function's own
+% help text specifies.
+spAbbr    = getOpt(options, 'spAbbr',    {});
+spName    = getOpt(options, 'spName',    {});
+spBm      = getOpt(options, 'spBm',      {});
+spATPM    = getOpt(options, 'spATPM',    {});
+metExId   = getOpt(options, 'metExId',   '[e]');
+rxnField  = getOpt(options, 'rxnField',  {});
+metField  = getOpt(options, 'metField',  {});
+geneField = getOpt(options, 'geneField', {});
+compField = getOpt(options, 'compField', {});
+sepUtEx   = getOpt(options, 'sepUtEx',   true);
+addExRxns = getOpt(options, 'addExRxns', true);
+verbFlag  = getOpt(options, 'verbFlag',  true);
+
+% Ported from build_community_model in spectra-cobra (community.py).
+%   metaboliteKey   function handle naming the compound a metabolite IS, so
+%                   two organisms spelling it differently still meet in the
+%                   pool. Default strips a trailing [compartment], which is
+%                   what this function already did inline.
+%   couple          tie each organism's reactions to its own biomass, so an
+%                   organism that is not growing cannot still run its
+%                   metabolism and feed the others. DEFAULT TRUE, matching
+%                   community.py. Turn it OFF for flux-consistency work: the
+%                   question there is whether the network can carry flux at
+%                   all, and coupling adds constraints that can make an
+%                   otherwise consistent reaction blocked.
+%   poolMedium      containers.Map from community metabolite to [lb ub] on
+%                   its community exchange, applied as part of the build.
+%   check           measure each biomass reaction and warn when the chosen
+%                   coupling factor would throttle its organism. One LP each.
+metaboliteKey     = getOpt(options, 'metaboliteKey',     @defaultMetaboliteKey);
+couple            = getOpt(options, 'couple',            true);
+couplingFactor    = getOpt(options, 'couplingFactor',    1000);
+couplingThreshold = getOpt(options, 'couplingThreshold', 0.01);
+poolMedium        = getOpt(options, 'poolMedium',        []);
+checkAnchors      = getOpt(options, 'check',             true);
 %organisms' abbreviations and names
 nameSpecies = false;
 if isstruct(modelCell)
@@ -103,8 +171,36 @@ if isempty(spName)
     spName = spAbbr;
 end
 %biomass reactions
+%
+% Optional now, and found the way _find_anchor does it in community.py:
+% the objective first, then a uniquely named biomass* reaction, and NO
+% guessing beyond that. Guessing matters because coupling gates every one of
+% an organism's reactions on this one: pick wrong and the organism is
+% throttled or freed with no error raised anywhere.
+%
+% The objective-first order is what makes AGORA2 work. Most of those models
+% call growth 'bio1', not 'biomass<NNN>', and every one of them also ships an
+% EX_biomass(e) exchange that must never be mistaken for the reaction itself.
 if isempty(spBm)
-    error('Please provide the names of the biomass reactions in options.spBm'); 
+    if couple || checkAnchors
+        spBm = cell(nSp, 1);
+        how  = cell(nSp, 1);
+        for j = 1:nSp
+            [spBm{j}, how{j}] = findAnchor(modelCell{j}, spAbbr{j});
+        end
+        if verbFlag
+            nObj = sum(strcmp(how, 'objective'));
+            fprintf('Biomass reactions: %d from the objective, %d by name.\n', ...
+                    nObj, nSp - nObj);
+        end
+    else
+        % Nothing downstream needs it: consistency checking never reads the
+        % objective, so an absent biomass must not block the join.
+        spBm = zeros(nSp, 1);
+    end
+end
+if isempty(spBm)
+    error('Please provide the names of the biomass reactions in options.spBm');
 elseif numel(spBm) ~= nSp
     error('Number of entries in options.spBm not equal to the number of models.');
 elseif iscell(spBm)
@@ -146,7 +242,25 @@ end
 [fieldNumeric,fieldCell,fieldStruct] = deal(fieldNumeric(id),fieldCell(id),fieldStruct(id));
 %fields that need special care
 id = ismember(field, {'S', 'rxns', 'mets', 'rev', 'lb', 'ub', 'c', 'b', ...
-    'metComs','rxnGeneMat','genes', 'grRules', 'rules', 'comps', 'compNames'});
+    'metComs','rxnGeneMat','genes', 'grRules', 'rules', 'comps', 'compNames', ...
+    ...  COUPLING AND EXTRA-VARIABLE FIELDS - dropped, never concatenated.
+    ...  These are MATRICES indexed by reaction, not per-reaction vectors, so
+    ...  the generic copy below mangles them: it appends one entry per
+    ...  organism and produces an nSp x 1 C. removeRxns then checks
+    ...  size(model.C,2) == numel(model.rxns), gets 1 against ~80,000, and
+    ...  throws "length of rowBool must equal size(A,2)".
+    ...
+    ...  This bites intermittently and looks like a solver bug. Only a few
+    ...  AGORA2 reconstructions carry C at all, and the ones that do carry it
+    ...  EMPTY (0 x nRxns), so a community built from a sample containing none
+    ...  of them joins and solves perfectly while a sample containing one
+    ...  fails inside whichever routine first calls removeRxns.
+    ...
+    ...  Dropping them is correct here rather than merely convenient: an input
+    ...  model's coupling constraints bind ITS reaction indices, which the
+    ...  join renumbers. Coupling in the community is built fresh from
+    ...  options.couple, the same way build_community_model does it.
+    'C', 'd', 'dsense', 'ctrs', 'E', 'evarlb', 'evarub', 'evarc', 'evars', 'D'});
 [field,fieldNumeric,fieldCell,fieldStruct] = deal(field(~id),fieldNumeric(~id),fieldCell(~id),fieldStruct(~id));
 rxnField = unique([rxnField(:);{'confidenceScores';'subSystems'}]);
 
@@ -225,16 +339,21 @@ for j = 1:nSp
         end
         %logical vector for extracellular metabolites
         ex{j} = ~cellfun(@isempty, modelCell{j}.metComs);
-        modelCell{j}.metComs(ex{j}) = regexprep(modelCell{j}.metComs(ex{j}),'\[[^\[\]]*\]$','');
+        modelCell{j}.metComs(ex{j}) = metaboliteKey(modelCell{j}.metComs(ex{j}));
     else
-        if ~isempty(metExId) %using identifier for extracellular mets
+        % metExId may be ONE identifier for every organism, or a cell array
+        % with one per organism. community.py allows the same, because the
+        % units need not agree: one may call it 'e' and another
+        % 'extracellular'.
+        if iscell(metExId), metExIdJ = metExId{j}; else, metExIdJ = metExId; end
+        if ~isempty(metExIdJ) %using identifier for extracellular mets
             %logical vector for extracellular metabolites
-            ex{j} = cellfun(@(x) ~isempty(strfind(x, metExId)), modelCell{j}.mets);
+            ex{j} = cellfun(@(x) ~isempty(strfind(x, metExIdJ)), modelCell{j}.mets);
         else %if no identifier, just check exchange reactions (will include sink/demand reactions)
             ex{j} = any(modelCell{j}.S(:, sum(modelCell{j}.S ~= 0) == 1), 2);
         end
         modelCell{j}.metComs = repmat({''},rowJ,1);
-        modelCell{j}.metComs(ex{j}) = regexprep(modelCell{j}.mets(ex{j}),'\[[^\[\]]*\]$','');
+        modelCell{j}.metComs(ex{j}) = metaboliteKey(modelCell{j}.mets(ex{j}));
     end
     %logical vector for exchange reactions
     rxnEx{j} = (sum(modelCell{j}.S(ex{j},:) ~= 0) == 1)' & (sum(modelCell{j}.S(~ex{j},:) ~= 0) == 0)';
@@ -734,7 +853,14 @@ modelCom = generateRules(modelCom, 0);
 modelCom = buildRxnGeneMat(modelCom);
 
 % get community info
-infoCom = infoCom2indCom(modelCom,indCom,true,spAbbr,spName);
+% infoCom2indCom was folded into SteadyComSubroutines in current COBRA, the
+% same way getCobraComParams was. Call through the dispatcher, falling back to
+% the standalone function so this still runs against older checkouts.
+if exist('infoCom2indCom', 'file') == 2
+    infoCom = infoCom2indCom(modelCom,indCom,true,spAbbr,spName);
+else
+    infoCom = SteadyComSubroutines('infoCom2indCom',modelCom,indCom,true,spAbbr,spName);
+end
 % add infoCom and indCom into modelCom
 modelCom.infoCom = infoCom;
 modelCom.indCom = indCom;
@@ -744,6 +870,184 @@ if isfield(modelCom, 'description') && iscell(modelCom.description)
 end
 if isfield(modelCom, 'osenseStr')
     modelCom.osenseStr = 'max';
+end
+
+%% Medium on the community exchanges -------------------------------------
+% Ported from build_community_model's pool_medium. Applying the medium during
+% the build rather than afterwards means the returned model is the one that
+% was asked for; a caller editing lb/ub afterwards has to know how EXcom is
+% laid out, which differs with sepUtEx.
+if ~isempty(poolMedium)
+    modelCom = applyPoolMedium(modelCom, poolMedium, sepUtEx, verbFlag);
+end
+
+%% Flux coupling ----------------------------------------------------------
+% Each organism's reactions are bounded by its own biomass flux:
+%     v_j  <=  couplingFactor * v_bm  +  couplingThreshold
+%    -v_j  <=  couplingFactor * v_bm  +  couplingThreshold
+% so an organism that is not growing cannot run its metabolism and feed the
+% rest of the community.
+%
+% ON BY DEFAULT, matching community.py. For a FLUX CONSISTENCY benchmark it
+% should be off: coupling adds constraints that can render a reaction blocked
+% which the uncoupled network carries fine, so leaving it on would measure the
+% coupling rather than the network.
+if couple
+    modelCom = coupleToBiomass(modelCom, indCom, couplingFactor, ...
+                               couplingThreshold, verbFlag);
+end
+
+%% Anchor check -----------------------------------------------------------
+% One LP per organism, reporting any whose achievable biomass flux is so low
+% that couplingFactor would cap its reactions below the solver's own
+% tolerance - i.e. coupling would silently switch that organism off.
+if checkAnchors && any(indCom.spBm > 0)
+    checkAnchorScale(modelCom, indCom, couplingFactor, verbFlag);
+end
+end
+
+% -------------------------------------------------------------------------
+function v = getOpt(options, name, default)
+% Value from options, or the documented default. Replaces getCobraComParams.
+if isfield(options, name) && ~isempty(options.(name))
+    v = options.(name);
+else
+    v = default;
+end
+end
+
+% -------------------------------------------------------------------------
+function keys = defaultMetaboliteKey(mets)
+% Name of the compound a metabolite IS, ignoring which compartment it sits in,
+% so that glc_D[e] in one organism and glc_D[c] in another meet in the pool.
+% Strips one trailing [compartment]; this is what the function did inline
+% before metaboliteKey was an option.
+keys = regexprep(mets, '\[[^\[\]]*\]$', '');
+end
+
+% -------------------------------------------------------------------------
+function [bm, how] = findAnchor(model, organism)
+% The reaction an organism's coupling should gate on, and how it was decided.
+% Ported from _find_anchor in community.py, including its refusal to guess.
+objective = find(model.c ~= 0);
+objective = objective(~startsWith(model.rxns(objective), 'EX_'));
+if numel(objective) == 1
+    bm = model.rxns{objective}; how = 'objective'; return
+end
+named = find(startsWith(lower(model.rxns), 'biomass') & ...
+             ~startsWith(model.rxns, 'EX_'));
+if numel(named) == 1
+    bm = model.rxns{named}; how = 'name'; return
+end
+cand = model.rxns(startsWith(lower(model.rxns), 'biomass') | ...
+                  contains(lower(model.rxns), 'maintenance') | ...
+                  ismember(upper(model.rxns), {'ATPM','DM_ATP_C_','DM_ATP_C'}));
+error('createCommModel:anchor', ...
+    ['Cannot tell which reaction of ''%s'' its parts should be coupled to ' ...
+     '(%d in the objective, %d named biomass). Pass options.spBm ' ...
+     'explicitly%s'], organism, numel(objective), numel(named), ...
+    sprintf('; candidates look like %s.', strjoin(cand(1:min(5,numel(cand)))', ', ')));
+end
+
+% -------------------------------------------------------------------------
+function modelCom = applyPoolMedium(modelCom, poolMedium, sepUtEx, verbFlag)
+% Bounds on the community exchanges, keyed by community metabolite name.
+EXcom = modelCom.indCom.EXcom;
+Mcom  = modelCom.indCom.Mcom;
+names = regexprep(modelCom.mets(Mcom), '\[u\]$', '');
+k = keys(poolMedium);
+nSet = 0;
+for i = 1:numel(k)
+    j = find(strcmp(names, k{i}), 1);
+    if isempty(j), continue; end
+    b = poolMedium(k{i});
+    if sepUtEx
+        % Uptake and export are separate reactions, both with non-negative
+        % flux, so a negative lower bound becomes an uptake capacity.
+        modelCom.ub(EXcom(j,1)) = abs(min(b(1), 0));
+        modelCom.ub(EXcom(j,2)) = max(b(2), 0);
+    else
+        modelCom.lb(EXcom(j)) = b(1);
+        modelCom.ub(EXcom(j)) = b(2);
+    end
+    nSet = nSet + 1;
+end
+if verbFlag
+    fprintf('Pool medium: %d of %d named metabolites matched a community exchange.\n', ...
+            nSet, numel(k));
+end
+end
+
+% -------------------------------------------------------------------------
+function modelCom = coupleToBiomass(modelCom, indCom, cFactor, cThreshold, verbFlag)
+% Add v_j - cFactor*v_bm <= cThreshold and -v_j - cFactor*v_bm <= cThreshold
+% for every reaction of every organism, as community.py's _couple_to_anchor
+% does. Community exchanges (rxnSps == 0) are not coupled: they belong to no
+% organism.
+nR = numel(modelCom.rxns);
+rxnSps = indCom.rxnSps(:);
+spBm   = indCom.spBm(:);
+rows = {}; nAdded = 0;
+for j = 1:numel(spBm)
+    if spBm(j) <= 0, continue; end
+    own = find(rxnSps == j);
+    own = own(own ~= spBm(j));          % never couple biomass to itself
+    if isempty(own), continue; end
+    for d = [1 -1]
+        A = sparse(repmat((1:numel(own))', 2, 1), ...
+                   [own; repmat(spBm(j), numel(own), 1)], ...
+                   [d*ones(numel(own),1); -cFactor*ones(numel(own),1)], ...
+                   numel(own), nR);
+        rows{end+1} = A; %#ok<AGROW>
+        nAdded = nAdded + numel(own);
+    end
+end
+if isempty(rows), return; end
+C = vertcat(rows{:});
+if isfield(modelCom, 'C') && ~isempty(modelCom.C)
+    modelCom.C = [modelCom.C; C];
+    modelCom.d = [modelCom.d; cThreshold*ones(size(C,1),1)];
+    modelCom.dsense = [modelCom.dsense; repmat('L', size(C,1), 1)];
+else
+    modelCom.C = C;
+    modelCom.d = cThreshold*ones(size(C,1),1);
+    modelCom.dsense = repmat('L', size(C,1), 1);
+end
+if ~isfield(modelCom, 'ctrs') || isempty(modelCom.ctrs)
+    modelCom.ctrs = {};
+end
+modelCom.ctrs = [modelCom.ctrs; ...
+    strcat('coupling_', strtrim(cellstr(num2str((1:size(C,1))'))))];
+if verbFlag
+    fprintf(['Coupling: %d constraints added (factor %g, threshold %g). ' ...
+             'Turn options.couple off for consistency checking.\n'], ...
+            size(C,1), cFactor, cThreshold);
+end
+end
+
+% -------------------------------------------------------------------------
+function checkAnchorScale(modelCom, indCom, cFactor, verbFlag)
+% Warn about organisms whose biomass cannot reach a flux at which cFactor
+% leaves their reactions any room. Costs one LP per organism.
+spBm = indCom.spBm(:);
+low  = {};
+for j = 1:numel(spBm)
+    if spBm(j) <= 0, continue; end
+    m = modelCom; m.c = zeros(numel(m.rxns),1); m.c(spBm(j)) = 1;
+    try
+        sol = optimizeCbModel(m, 'max');
+        if sol.stat == 1 && cFactor*sol.f < 1e-6
+            low{end+1} = sprintf('%s (max biomass %.3g)', ...
+                modelCom.rxns{spBm(j)}, sol.f); %#ok<AGROW>
+        end
+    catch
+        % A failed LP is not evidence of a throttled anchor; say nothing.
+    end
+end
+if ~isempty(low) && verbFlag
+    warning('createCommModel:anchorScale', ...
+        ['Coupling factor %g would cap these organisms'' reactions below ' ...
+         '1e-6:\n  %s'], cFactor, strjoin(low, '\n  '));
 end
 end
 

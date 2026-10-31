@@ -1,0 +1,13 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+recon_rm0000_rep01,spectracc,small,0,0,10600,9.212338,9.212338,9.212338,1,8,10600,0,NaN,NaN,NaN,
+recon_rm0000_rep01,fastercc_r0,small,0,0,10600,6.236508,6.236508,6.236508,1,12,10600,0,NaN,NaN,NaN,
+recon_rm0000_rep01,fastcc,small,0,0,10600,5.671865,5.671865,5.671865,1,16,10600,0,NaN,NaN,NaN,
+recon_rm0000_rep01,swiftcc,small,0,0,10600,140.054577,140.054577,140.054577,1,1,10600,0,NaN,NaN,NaN,
+recon_rm5000_rep01,spectracc,small,0,5000,5600,2.513913,2.513913,2.513913,1,8,1700,0,NaN,NaN,NaN,
+recon_rm5000_rep01,fastercc_r0,small,0,5000,5600,39.06682,39.06682,39.06682,1,112,1700,0,NaN,NaN,NaN,
+recon_rm5000_rep01,fastcc,small,0,5000,5600,1191.617302,1191.617302,1191.617302,1,3717,1700,0,NaN,NaN,NaN,
+recon_rm5000_rep01,swiftcc,small,0,5000,5600,1.353106,1.353106,1.353106,1,1,1700,0,NaN,NaN,NaN,
+recon_rm10000_rep01,spectracc,small,0,10000,600,1.564397,1.564397,1.564397,1,2,0,0,NaN,NaN,NaN,
+recon_rm10000_rep01,fastercc_r0,small,0,10000,600,NaN,NaN,NaN,1,NaN,0,0,NaN,NaN,NaN,: solveCobraLP: gurobi reporting OPTIMAL but no solution
+recon_rm10000_rep01,fastcc,small,0,10000,600,168.956185,168.956185,168.956185,1,571,0,0,NaN,NaN,NaN,
+recon_rm10000_rep01,swiftcc,small,0,10000,600,0.554645,0.554645,0.554645,1,1,0,0,NaN,NaN,NaN,

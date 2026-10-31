@@ -1,0 +1,3 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+k10_rm10000_rep03,spectracc,large,10,10000,83520,248.958845,236.605011,313.062451,3,10,66364,2,NaN,NaN,NaN,
+k10_rm10000_rep03,fastercc_r0,large,10,10000,83520,1440.538614,1437.366835,1597.831303,3,125,66362,2,NaN,NaN,NaN,

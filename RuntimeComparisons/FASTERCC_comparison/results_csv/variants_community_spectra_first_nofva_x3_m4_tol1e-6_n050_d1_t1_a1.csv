@@ -1,0 +1,2 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+com050_rep01,spectracc,community,50,0,87034,1896.800923,1896.800923,1896.800923,1,160,26693,0,NaN,NaN,NaN,

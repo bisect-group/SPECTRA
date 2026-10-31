@@ -1,0 +1,13 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+recon_rm3500_rep01,spectracc,small,0,3500,7100,3.170373,1.756808,3.395344,3,8,3633,0,NaN,NaN,NaN,
+recon_rm3500_rep01,fastercc_r0,small,0,3500,7100,35.258032,35.134404,35.863841,3,100,3633,0,NaN,NaN,NaN,
+recon_rm3500_rep01,fastcc,small,0,3500,7100,1236.244633,1194.482038,1260.618867,3,3368,3633,0,NaN,NaN,NaN,
+recon_rm3500_rep01,swiftcc,small,0,3500,7100,11.013224,10.657077,11.377315,3,1,3633,0,NaN,NaN,NaN,
+recon_rm3500_rep02,spectracc,small,0,3500,7100,1.694412,1.68506,2.158646,3,8,3526,0,NaN,NaN,NaN,
+recon_rm3500_rep02,fastercc_r0,small,0,3500,7100,32.523485,26.95054,43.081636,3,86,3526,0,NaN,NaN,NaN,
+recon_rm3500_rep02,fastcc,small,0,3500,7100,1247.545731,1201.791577,1264.050013,3,3426,3526,0,NaN,NaN,NaN,
+recon_rm3500_rep02,swiftcc,small,0,3500,7100,8.347406,8.265791,9.706335,3,1,3526,0,NaN,NaN,NaN,
+recon_rm3500_rep03,spectracc,small,0,3500,7100,1.769773,1.452246,2.68904,3,8,3502,5,NaN,NaN,NaN,
+recon_rm3500_rep03,fastercc_r0,small,0,3500,7100,29.196583,26.008912,31.05372,3,78,3502,5,NaN,NaN,NaN,
+recon_rm3500_rep03,fastcc,small,0,3500,7100,1239.023818,1225.370799,1250.602813,3,3511,3502,5,NaN,NaN,NaN,
+recon_rm3500_rep03,swiftcc,small,0,3500,7100,10.534689,10.516849,10.675982,3,1,3507,5,NaN,NaN,NaN,

@@ -1,0 +1,3 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+com050_rep02,spectracc,community,50,0,79948,359.374744,350.303455,366.595995,3,28,28307,446,NaN,NaN,NaN,
+com050_rep02,fastercc_r0,community,50,0,79948,1693.344496,1665.069556,1814.322633,3,613,27861,446,NaN,NaN,NaN,

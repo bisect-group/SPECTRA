@@ -1,0 +1,13 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+recon_rm5000_rep01,spectracc,small,0,5000,5600,2.405123,1.181214,5.567789,3,8,1700,0,NaN,NaN,NaN,
+recon_rm5000_rep01,fastercc_r0,small,0,5000,5600,34.425705,31.682253,40.841876,3,112,1700,0,NaN,NaN,NaN,
+recon_rm5000_rep01,fastcc,small,0,5000,5600,1273.963873,1271.330619,1323.321757,3,3717,1700,0,NaN,NaN,NaN,
+recon_rm5000_rep01,swiftcc,small,0,5000,5600,1.379685,1.314041,1.41179,3,1,1700,0,NaN,NaN,NaN,
+recon_rm5000_rep02,spectracc,small,0,5000,5600,1.905589,1.564939,2.892978,3,8,1771,3,NaN,NaN,NaN,
+recon_rm5000_rep02,fastercc_r0,small,0,5000,5600,40.30088,40.20683,42.460699,3,105,1771,3,NaN,NaN,NaN,
+recon_rm5000_rep02,fastcc,small,0,5000,5600,1288.428826,1250.589003,1325.51674,3,3729,1771,3,NaN,NaN,NaN,
+recon_rm5000_rep02,swiftcc,small,0,5000,5600,1.390939,1.386246,2.38905,3,1,1774,3,NaN,NaN,NaN,
+recon_rm5000_rep03,spectracc,small,0,5000,5600,2.857919,2.155436,4.895165,3,8,1859,0,NaN,NaN,NaN,
+recon_rm5000_rep03,fastercc_r0,small,0,5000,5600,42.392026,33.56866,45.913983,3,109,1859,0,NaN,NaN,NaN,
+recon_rm5000_rep03,fastcc,small,0,5000,5600,1258.974146,1238.904457,1292.638945,3,3625,1859,0,NaN,NaN,NaN,
+recon_rm5000_rep03,swiftcc,small,0,5000,5600,1.470417,1.466198,1.47603,3,1,1859,0,NaN,NaN,NaN,

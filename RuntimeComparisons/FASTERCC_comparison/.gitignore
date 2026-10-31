@@ -1,0 +1,22 @@
+# Per-instance results: ~39 GB of consistent-set membership masks. Every
+# instance is a pure function of its seed, so bench_make_instance /
+# bench_make_community regenerate any of them exactly. The CSVs in
+# results_csv/ carry everything the figures use.
+results/
+*.mat
+
+# Cluster scratch
+logs/
+base/
+models/
+agora2/
+
+# Generated locally during a run
+*.asv
+.DS_Store
+
+# Scheduler scripts are deliberately not tracked: they encode one site's
+# module names, partitions and absolute paths, which transfer to nobody.
+# The README gives the portable MATLAB calls instead.
+*.sbatch
+*.sh

@@ -1,0 +1,5 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+recon_rm0000_rep01,spectracc,small,0,0,10600,5.381546,3.164992,6.796231,3,8,10600,0,NaN,NaN,NaN,
+recon_rm0000_rep01,fastercc_r0,small,0,0,10600,7.116311,4.826092,10.463714,3,12,10600,0,NaN,NaN,NaN,
+recon_rm0000_rep01,fastcc,small,0,0,10600,10.92465,7.516474,11.543437,3,16,10600,0,NaN,NaN,NaN,
+recon_rm0000_rep01,swiftcc,small,0,0,10600,123.421643,121.094706,126.475189,3,1,10600,0,NaN,NaN,NaN,

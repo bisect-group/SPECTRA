@@ -1,0 +1,98 @@
+--- fasterCC.m.orig	2026-10-23 15:05:58
++++ fasterCC.m	2026-10-23 15:07:12
+@@ -1,4 +1,4 @@
+-function [A, model] = fasterCC(model, epsilon, printLevel, revopt)
++function [A, model, nLP] = fasterCC(model, epsilon, printLevel, revopt)
+ % [A, V] = fasterCC(model, epsilon, printLevel, revopt)
+ %
+ % The fasterCC algorithm for testing the consistency of a stoichiometric model.
+@@ -34,6 +34,8 @@
+ end
+ %%
+ 
++% [LP COUNT] LP solve counters, added for benchmarking only.
++nLP = struct('total', 0, 'lp7', 0, 'lp3', 0);
+ %% Save original bounds
+ orig_lb = model.lb;
+ orig_ub = model.ub;
+@@ -92,6 +94,7 @@
+ 
+ % V is the flux vector that approximately maximizes the cardinality
+ V = LP7_rFASTCORMICS(J, model, epsilon);
++nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+ 
+ % Flip reversible reactions with negative flux
+ Vrev = V < -epsilon & model.lb < 0 & model.ub > 0;
+@@ -171,6 +174,7 @@
+ % Testing exchange reactions
+ Ex = find(sum(model.S ~= 0, 1) == 1); % identify exchange-like reactions
+ V = LP7_rFASTCORMICS(Ex, model, epsilon); % test the consistency of all exchange reactions
++nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+ Supp = find(abs(V) >= 0.99 * epsilon); % reactions that carry flux with an absolute positive value are not blocked
+ % Add supported exchanges to A, remove from J
+ % A is the set of reactions in V with absolute value greater than epsilon
+@@ -194,6 +198,7 @@
+ 
+ % Recompute exchanges (still degree-1 after sign flip) and run LP7 again
+ V = LP7_rFASTCORMICS(Ex, model, epsilon);
++nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+ Supp = find(abs(V) >= 0.99 * epsilon);
+ A = union(A, Supp);
+ J = setdiff(J, A);
+@@ -218,6 +223,7 @@
+         % Start of the one-by-one step
+         Ji = J(1);
+         V = LP3_rFASTCORMICS(Ji, model);
++        nLP.lp3 = nLP.lp3 + 1;  % [LP COUNT]
+ 
+         % Flip reversible reactions with negative flux
+         Vrev = V < 0 & model.rev == 1;
+@@ -231,6 +237,7 @@
+         % Batch mode: try to support as many reactions as possible in one go.
+         Ji = J;
+         V = LP7_rFASTCORMICS(Ji, model, epsilon);
++        nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+ 
+         Vrev = V < 0 & model.lb < 0 & model.ub > 0;
+         % Flip reversible reactions that have a negative flux
+@@ -340,6 +347,7 @@
+     % Test the reversible reactions in the forward direction
+     rev = find(model.lb < 0 & model.ub > 0);
+     V = LP7_rFASTCORMICS(rev, model, epsilon);
++    nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+ 
+     SuppRev = find(abs(V) >= 0.99 * epsilon);
+     NewIrr_test = setdiff(rev, SuppRev);
+@@ -350,6 +358,7 @@
+         model = model_keep;
+         IrrTest = NewIrr_test(i);
+         V = LP7_rFASTCORMICS(IrrTest, model, epsilon);
++        nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+         SuppRev = find(abs(V) >= 0.99 * epsilon);
+         if ~isempty(setdiff(IrrTest, SuppRev))
+             model.ub(IrrTest) = 0;
+@@ -363,6 +372,7 @@
+     model.lb(rev) = -temp;
+ 
+     V = LP7_rFASTCORMICS(rev, model, epsilon);
++    nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+     SuppRev = find(abs(V) >= 0.99 * epsilon);
+     NewIrr_testback = setdiff(rev, SuppRev);
+     % Flip all reversible reactions to test backward direction
+@@ -373,6 +383,7 @@
+         model = model_org_rev;
+         IrrTest = NewIrr_testback(i);
+         V = LP7_rFASTCORMICS(IrrTest, model, epsilon);
++        nLP.lp7 = nLP.lp7 + 1;  % [LP COUNT]
+         SuppRev = find(abs(V) >= 0.99 * epsilon);
+         if ~isempty(setdiff(IrrTest, SuppRev))
+             model.ub(IrrTest) = 0;
+@@ -384,6 +395,8 @@
+     model.ub(IrrTestkeep ~= 0) = 0;
+     model.lb(IrrTestkeepback ~= 0) = 0;
+ end
++% [LP COUNT] total LPs solved, for benchmarking. Behaviour unchanged.
++nLP.total = nLP.lp7 + nLP.lp3;
+ [model]=restoreBounds(model, A,model_org, changed_lb, changed_ub, orig_lb, orig_ub);
+ 
+ end
