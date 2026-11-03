@@ -1,0 +1,2 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+com100_rep03,fastercc_r0,community,100,0,173898,14344.3301,13452.236267,14632.558768,3,1175,63761,0,NaN,NaN,NaN,

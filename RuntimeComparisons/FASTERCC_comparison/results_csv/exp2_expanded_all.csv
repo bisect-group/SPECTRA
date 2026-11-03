@@ -1,0 +1,241 @@
+k,level,draw,timing,arm,nRxns,runtimeSec,nConsistent,nLPs,err
+5,500,1,1,spectracc,47820,109.03,46901,10,
+5,500,1,1,fastercc_r0,47820,137.57,46901,30,
+5,2000,1,1,spectracc,46320,94.7,42031,8,
+5,2000,1,1,fastercc_r0,46320,174.3,42031,62,
+5,5000,3,1,spectracc,43320,94.54,34754,8,
+5,5000,3,1,fastercc_r0,43320,226.9,34754,66,
+5,10000,3,1,spectracc,38320,80.24,25613,8,
+5,10000,3,1,fastercc_r0,38320,453.71,25613,152,
+10,500,1,1,spectracc,93020,603.44,92020,10,
+10,500,1,1,fastercc_r0,93020,1083.94,92020,43,
+10,2000,1,1,spectracc,91520,683.73,87562,10,
+10,2000,1,1,fastercc_r0,91520,1574.02,87562,66,
+10,5000,1,1,spectracc,88520,437.18,78486,10,
+10,5000,1,1,fastercc_r0,88520,1872.63,78486,92,
+10,10000,1,1,spectracc,83520,401.82,66464,10,
+10,10000,1,1,fastercc_r0,83520,1641.13,66464,145,
+10,500,2,1,spectracc,93020,437.71,91369,10,
+10,500,2,1,fastercc_r0,93020,1146.08,91369,51,
+10,2000,2,1,spectracc,91520,366.16,87225,10,
+10,2000,2,1,fastercc_r0,91520,864.3,87225,44,
+10,5000,2,1,spectracc,88520,401.46,78078,10,
+10,5000,2,1,fastercc_r0,88520,1100.58,78078,89,
+10,10000,2,1,spectracc,83520,293.69,66728,10,
+10,10000,2,1,fastercc_r0,83520,1199.78,66728,133,
+5,5000,1,1,spectracc,43320,110.89,34707,10,
+5,5000,1,1,fastercc_r0,43320,274.56,34707,80,
+10,500,3,1,spectracc,93020,652.18,92024,10,
+10,500,3,1,fastercc_r0,93020,765.14,92024,35,
+10,2000,3,1,spectracc,91520,339.11,87575,10,
+10,2000,3,1,fastercc_r0,91520,1034.76,87575,57,
+10,5000,3,1,spectracc,88520,289.34,78513,10,
+10,5000,3,1,fastercc_r0,88520,913.46,78513,64,
+10,10000,3,1,spectracc,83520,248.96,66364,10,
+10,10000,3,1,fastercc_r0,83520,1440.54,66362,125,
+20,500,1,1,spectracc,183420,1586.31,182081,10,
+20,500,1,1,fastercc_r0,183420,,,,no result (killed: OOM or wall clock)
+20,2000,1,1,spectracc,181920,1376.0,177484,10,
+20,2000,1,1,fastercc_r0,181920,,,,no result (killed: OOM or wall clock)
+20,5000,1,1,spectracc,178920,1941.66,168101,10,
+20,5000,1,1,fastercc_r0,178920,,,,no result (killed: OOM or wall clock)
+20,10000,1,1,spectracc,173920,1128.91,153648,10,
+20,10000,1,1,fastercc_r0,173920,,,,no result (killed: OOM or wall clock)
+20,500,2,1,spectracc,183420,1264.36,182434,10,
+20,500,2,1,fastercc_r0,183420,,,,no result (killed: OOM or wall clock)
+20,2000,2,1,spectracc,181920,1190.99,177410,10,
+20,2000,2,1,fastercc_r0,181920,,,,no result (killed: OOM or wall clock)
+5,10000,1,1,spectracc,38320,61.93,25199,8,
+5,10000,1,1,fastercc_r0,38320,251.12,25199,125,
+20,5000,2,1,spectracc,178920,1592.26,168036,10,
+20,5000,2,1,fastercc_r0,178920,,,,no result (killed: OOM or wall clock)
+20,10000,2,1,spectracc,173920,1345.73,154225,10,
+20,10000,2,1,fastercc_r0,173920,,,,no result (killed: OOM or wall clock)
+20,500,3,1,spectracc,183420,1672.77,182440,10,
+20,500,3,1,fastercc_r0,183420,,,,no result (killed: OOM or wall clock)
+20,2000,3,1,spectracc,181920,1491.3,177668,10,
+20,2000,3,1,fastercc_r0,181920,,,,no result (killed: OOM or wall clock)
+20,5000,3,1,spectracc,178920,1664.52,167159,10,
+20,5000,3,1,fastercc_r0,178920,,,,no result (killed: OOM or wall clock)
+20,10000,3,1,spectracc,173920,1552.21,153595,10,
+20,10000,3,1,fastercc_r0,173920,,,,no result (killed: OOM or wall clock)
+5,500,2,1,spectracc,47820,139.84,46775,8,
+5,500,2,1,fastercc_r0,47820,167.13,46775,23,
+5,2000,2,1,spectracc,46320,82.46,42368,10,
+5,2000,2,1,fastercc_r0,46320,181.28,42368,58,
+5,5000,2,1,spectracc,43320,61.48,34677,8,
+5,5000,2,1,fastercc_r0,43320,,,,LP7 returned no solution (stat=0; origStat=INFEASIBLE).
+5,10000,2,1,spectracc,38320,45.68,25549,8,
+5,10000,2,1,fastercc_r0,38320,197.41,25549,126,
+5,500,3,1,spectracc,47820,151.61,46458,10,
+5,500,3,1,fastercc_r0,47820,157.78,46458,38,
+5,2000,3,1,spectracc,46320,111.11,42168,10,
+5,2000,3,1,fastercc_r0,46320,269.03,42168,60,
+20,500,1,1,spectracc,183420,1369.25,182081,10,
+20,500,1,1,fastercc_r0,183420,,,,no result (killed: OOM or wall clock)
+20,2000,1,1,spectracc,181920,1362.07,177484,10,
+20,2000,1,1,fastercc_r0,181920,,,,no result (killed: OOM or wall clock)
+20,5000,1,1,spectracc,178920,1967.8,168101,10,
+20,5000,1,1,fastercc_r0,178920,,,,no result (killed: OOM or wall clock)
+20,10000,1,1,spectracc,173920,1227.04,153648,10,
+20,10000,1,1,fastercc_r0,173920,,,,no result (killed: OOM or wall clock)
+20,500,2,1,spectracc,183420,1493.3,182434,10,
+20,500,2,1,fastercc_r0,183420,,,,no result (killed: OOM or wall clock)
+20,2000,2,1,spectracc,181920,1303.13,177410,10,
+20,2000,2,1,fastercc_r0,181920,,,,no result (killed: OOM or wall clock)
+20,5000,2,1,spectracc,178920,1351.49,168036,10,
+20,5000,2,1,fastercc_r0,178920,,,,no result (killed: OOM or wall clock)
+20,10000,2,1,spectracc,173920,1101.21,154225,10,
+20,10000,2,1,fastercc_r0,173920,,,,no result (killed: OOM or wall clock)
+20,500,3,1,spectracc,183420,1661.54,182440,10,
+20,500,3,1,fastercc_r0,183420,,,,no result (killed: OOM or wall clock)
+20,2000,3,1,spectracc,181920,1559.39,177668,10,
+20,2000,3,1,fastercc_r0,181920,,,,no result (killed: OOM or wall clock)
+20,5000,3,1,spectracc,178920,1350.84,167159,10,
+20,5000,3,1,fastercc_r0,178920,,,,no result (killed: OOM or wall clock)
+20,10000,3,1,spectracc,173920,1869.43,153595,10,
+20,10000,3,1,fastercc_r0,173920,,,,no result (killed: OOM or wall clock)
+30,500,1,1,spectracc,273820,4409.06,272906,10,
+30,500,1,1,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,1,1,spectracc,272320,5660.83,267208,10,
+30,2000,1,1,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,5000,3,1,spectracc,269320,3733.71,257653,10,
+30,5000,3,1,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,3,1,spectracc,264320,3174.51,243314,10,
+30,10000,3,1,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,500,1,2,spectracc,273820,4779.09,272906,10,
+30,500,1,2,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,1,2,spectracc,272320,6851.32,267208,10,
+30,2000,1,2,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,5000,1,2,spectracc,269320,4520.35,257650,10,
+30,5000,1,2,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,1,2,spectracc,264320,4588.27,241526,10,
+30,10000,1,2,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,500,2,2,spectracc,273820,3814.88,272880,10,
+30,500,2,2,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,2,2,spectracc,272320,5562.84,268166,10,
+30,2000,2,2,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,5000,2,2,spectracc,269320,3627.14,258561,10,
+30,5000,2,2,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,2,2,spectracc,264320,3405.44,242787,10,
+30,10000,2,2,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,5000,1,1,spectracc,269320,4868.31,257650,10,
+30,5000,1,1,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,500,3,2,spectracc,273820,4580.75,272888,10,
+30,500,3,2,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,3,2,spectracc,272320,3324.39,267204,10,
+30,2000,3,2,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,5000,3,2,spectracc,269320,3728.92,257653,10,
+30,5000,3,2,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,3,2,spectracc,264320,3246.14,243314,10,
+30,10000,3,2,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,500,1,3,spectracc,273820,4065.65,272906,10,
+30,500,1,3,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,1,3,spectracc,272320,5708.97,267208,10,
+30,2000,1,3,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,5000,1,3,spectracc,269320,4713.62,257650,10,
+30,5000,1,3,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,1,3,spectracc,264320,4831.44,241526,10,
+30,10000,1,3,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,500,2,3,spectracc,273820,3874.14,272880,10,
+30,500,2,3,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,2,3,spectracc,272320,6379.86,268166,10,
+30,2000,2,3,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,10000,1,1,spectracc,264320,4425.46,241526,10,
+30,10000,1,1,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,5000,2,3,spectracc,269320,3474.08,258561,10,
+30,5000,2,3,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,2,3,spectracc,264320,3357.31,242787,10,
+30,10000,2,3,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,500,3,3,spectracc,273820,4347.64,272888,10,
+30,500,3,3,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,3,3,spectracc,272320,3128.59,267204,10,
+30,2000,3,3,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,5000,3,3,spectracc,269320,3916.71,257653,10,
+30,5000,3,3,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,3,3,spectracc,264320,3246.97,243314,10,
+30,10000,3,3,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,500,2,1,spectracc,273820,3627.28,272880,10,
+30,500,2,1,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,2,1,spectracc,272320,5614.27,268166,10,
+30,2000,2,1,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+30,5000,2,1,spectracc,269320,4481.13,258561,10,
+30,5000,2,1,fastercc_r0,269320,,,,no result (killed: OOM or wall clock)
+30,10000,2,1,spectracc,264320,4392.7,242787,10,
+30,10000,2,1,fastercc_r0,264320,,,,no result (killed: OOM or wall clock)
+30,500,3,1,spectracc,273820,3998.42,272888,10,
+30,500,3,1,fastercc_r0,273820,,,,no result (killed: OOM or wall clock)
+30,2000,3,1,spectracc,272320,3668.11,267204,10,
+30,2000,3,1,fastercc_r0,272320,,,,no result (killed: OOM or wall clock)
+50,500,1,1,spectracc,454620,16935.32,453736,10,
+50,500,1,1,fastercc_r0,454620,,,,Requested 216093x453736 (821.8GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,1,1,spectracc,453120,17579.84,448374,10,
+50,2000,1,1,fastercc_r0,453120,,,,Requested 213077x448374 (800.8GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,5000,3,1,spectracc,450120,19267.93,437135,10,
+50,5000,3,1,fastercc_r0,450120,,,,Requested 206294x437135 (755.9GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,10000,3,1,spectracc,445120,17774.09,422870,10,
+50,10000,3,1,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,500,1,2,spectracc,454620,17587.79,453736,10,
+50,500,1,2,fastercc_r0,454620,,,,Requested 216093x453736 (821.8GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,1,2,spectracc,453120,18677.04,448374,10,
+50,2000,1,2,fastercc_r0,453120,,,,Requested 213077x448374 (800.8GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,5000,1,2,spectracc,450120,11318.08,438520,10,
+50,5000,1,2,fastercc_r0,450120,,,,Requested 207370x438520 (762.2GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,10000,1,2,spectracc,445120,19214.52,422311,10,
+50,10000,1,2,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,500,2,2,spectracc,454620,20121.68,453849,10,
+50,500,2,2,fastercc_r0,454620,,,,Requested 216164x453849 (822.3GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,2,2,spectracc,453120,18598.01,448182,10,
+50,2000,2,2,fastercc_r0,453120,,,,Requested 213022x448182 (800.2GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,5000,2,2,spectracc,450120,20701.97,438976,10,
+50,5000,2,2,fastercc_r0,450120,,,,Requested 207872x438976 (764.9GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,10000,2,2,spectracc,445120,17124.6,420751,10,
+50,10000,2,2,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,5000,1,1,spectracc,450120,11304.78,438520,10,
+50,5000,1,1,fastercc_r0,450120,,,,Requested 207370x438520 (762.2GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,500,3,2,spectracc,454620,17571.59,453201,10,
+50,500,3,2,fastercc_r0,454620,,,,Requested 215789x453201 (819.7GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,3,2,spectracc,453120,19942.6,448435,10,
+50,2000,3,2,fastercc_r0,453120,,,,Requested 212920x448435 (800.3GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,5000,3,2,spectracc,450120,18447.38,437135,10,
+50,5000,3,2,fastercc_r0,450120,,,,Requested 206294x437135 (755.9GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,10000,3,2,spectracc,445120,17422.08,422870,10,
+50,10000,3,2,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,500,1,3,spectracc,454620,16110.68,453736,10,
+50,500,1,3,fastercc_r0,454620,,,,Requested 216093x453736 (821.8GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,1,3,spectracc,453120,18456.48,448374,10,
+50,2000,1,3,fastercc_r0,453120,,,,Requested 213077x448374 (800.8GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,5000,1,3,spectracc,450120,11850.29,438520,10,
+50,5000,1,3,fastercc_r0,450120,,,,Requested 207370x438520 (762.2GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,10000,1,3,spectracc,445120,19513.32,422311,10,
+50,10000,1,3,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,500,2,3,spectracc,454620,21701.65,453849,10,
+50,500,2,3,fastercc_r0,454620,,,,Requested 216164x453849 (822.3GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,2,3,spectracc,453120,19769.78,448182,10,
+50,2000,2,3,fastercc_r0,453120,,,,no result (killed: OOM or wall clock)
+50,10000,1,1,spectracc,445120,15923.7,422311,10,
+50,10000,1,1,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,5000,2,3,spectracc,450120,20312.12,438976,10,
+50,5000,2,3,fastercc_r0,450120,,,,Requested 207872x438976 (764.9GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,10000,2,3,spectracc,445120,18834.72,420751,10,
+50,10000,2,3,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,500,3,3,spectracc,454620,18586.8,453201,10,
+50,500,3,3,fastercc_r0,454620,,,,Requested 215789x453201 (819.7GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,3,3,spectracc,453120,21118.45,448435,10,
+50,2000,3,3,fastercc_r0,453120,,,,Requested 212920x448435 (800.3GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,5000,3,3,spectracc,450120,18394.21,437135,10,
+50,5000,3,3,fastercc_r0,450120,,,,no result (killed: OOM or wall clock)
+50,10000,3,3,spectracc,445120,18132.47,422870,10,
+50,10000,3,3,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,500,2,1,spectracc,454620,19797.63,453849,10,
+50,500,2,1,fastercc_r0,454620,,,,Requested 216164x453849 (822.3GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,2,1,spectracc,453120,28323.57,448182,10,
+50,2000,2,1,fastercc_r0,453120,,,,no result (killed: OOM or wall clock)
+50,5000,2,1,spectracc,450120,21956.1,438976,10,
+50,5000,2,1,fastercc_r0,450120,,,,Requested 207872x438976 (764.9GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,10000,2,1,spectracc,445120,18560.51,420751,10,
+50,10000,2,1,fastercc_r0,445120,,,,no result (killed: OOM or wall clock)
+50,500,3,1,spectracc,454620,19452.26,453201,10,
+50,500,3,1,fastercc_r0,454620,,,,Requested 215789x453201 (819.7GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco
+50,2000,3,1,spectracc,453120,19238.04,448435,10,
+50,2000,3,1,fastercc_r0,453120,,,,Requested 212920x448435 (800.3GB) array exceeds maximum array size preference (755.4GB). This might cause MATLAB to beco

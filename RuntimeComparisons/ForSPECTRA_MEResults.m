@@ -1,8 +1,22 @@
-clear
-load('./consRecon3D')
+clearvars -except rep seed
+% rep and seed come from the caller. A plain `clear` wiped them, which is why
+% this script could not previously be run as replicates.
+if ~exist('rep','var'),  rep  = 1;    end
+if ~exist('seed','var'), seed = 1000 + rep; end
+
+% SEED EXPLICITLY. MATLAB starts every session from the same RNG state, so
+% running this script in three separate processes would draw the IDENTICAL
+% core sets and report zero spread - error bars that look real and are not.
+rng(seed, 'twister');
+
+S = load('./consRecon3D');
+model = S.consRecon3D;   % the file stores consRecon3D, not model
 % initCobraToolbox(false)
 changeCobraSolver('gurobi','all')
-n = 200:200:10600; % number of core reactions
+% The ten core-set sizes the published figure plots, i.e. the points
+% linspace(0,528,10) selects from the original 20:20:10600 sweep. Running
+% only these keeps a replicate under two minutes.
+n = [20 1180 2360 3540 4700 5880 7060 8220 9400 10580]; % number of core reactions
 tol =1e-4; % tolerance level for fastcore and sprintcore
 
 weights = ones(numel(model.rxns),1); %weights for swiftcore
@@ -28,7 +42,11 @@ for i=1:numel(n)
     
     % fastcore
     tic
-    [m,~,LPs] = fastcore(model,core,tol);
+    % 5th output: COBRA's fastcore returns
+    % [tissueModel, coreRxnBool, coreMetBool, coreCtrsBool], so the LP count
+    % is appended as a fifth rather than displacing one of those - every
+    % other caller keeps working. Added by the fastcore LP-counter patch.
+    [m,~,~,~,LPs] = fastcore(model,core,tol);
     time = toc;
     fcrxns{i}=m.rxns;
     fctimes(i)=time;
@@ -56,14 +74,20 @@ for i=1:numel(n)
     model_name=['SP2_',num2str(i)];
     ModelQuality=checkModelQuality(ModelQuality,m,core_rxns,model_name,tol);
     
-    % sprintcore3
-    tic
-    [m,~] = sprintcore(model,core,tol,[],[],[],[],'MILP');
-    time = toc;
-    sp3rxns{i}=m.rxns;
-    sp3times(i)=time;
-    model_name=['SP3_',num2str(i)];
-    ModelQuality=checkModelQuality(ModelQuality,m,core_rxns,model_name,tol);
+    % SP3 - the old sprintcore(...,'MILP') arm - is DISABLED.
+    %
+    % sprintcore is what spectraME was called before the rename, and the
+    % argument lists are positionally identical, so the call would now read
+    %     [m,~] = spectraME(model,core,tol,[],[],[],[],'MILP');
+    % with 'MILP' landing on spectraME's 8th argument, probType.
+    %
+    % It stays off because this benchmark compares LP formulations: a MILP
+    % runtime is not comparable with them, so the arm would be timed and
+    % never plotted - which is exactly what happened in the original run,
+    % where sp3times was computed but never written to
+    % Results_SPECTRA_ME_Runtime.mat and never appears in
+    % Runtime_SPECTRA_ME.ipynb. It is also unbounded in cost, being the only
+    % MILP in the loop.
     
     % swiftcore with reduction
     tic
@@ -85,4 +109,4 @@ for i=1:numel(n)
     model_name=['SWwr_',num2str(i)];
     ModelQuality=checkModelQuality(ModelQuality,m,core_rxns,model_name,tol);
 end
-save('Results_SPECTRA_ME_Runtime')
+save(sprintf('Results_SPECTRA_ME_Runtime_rep%d', rep))

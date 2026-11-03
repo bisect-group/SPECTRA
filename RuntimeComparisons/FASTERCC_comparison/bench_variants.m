@@ -108,12 +108,26 @@ changeCobraSolver(cfg.solver, 'all', 0);
 % standing configuration in exactly the one number being swept - the instance
 % is seeded from (size, rep) alone, so the model handed to the arm is byte
 % for byte the model the 1e-9 run saw.
-if isfield(opts,'feasTol') && ~isempty(opts.feasTol)
-    cfg.feasTol = opts.feasTol;
-    cfg.optTol  = opts.feasTol;
+%
+% opts.feasTol = 'default' leaves the solver ALONE - no
+% changeCobraSolverParams call at all - so it runs at whatever tolerance it
+% ships with. That is what the published SPECTRA panel was produced under,
+% and pinning 1e-9 is what makes the LP-based arms here slower than it;
+% SwiftCC, which settles reversible reactions by QR factorisation rather
+% than by LPs, is almost unaffected either way. The effective value is read
+% back and recorded so the run is reproducible without this code choosing it.
+if isfield(opts,'feasTol') && ischar(opts.feasTol) && strcmpi(opts.feasTol,'default')
+    [cfg.feasTol, cfg.optTol] = getCobraSolverParams('LP', {'feasTol','optTol'});
+    fprintf('Solver tolerances left at their DEFAULTS: feasTol=%g optTol=%g\n', ...
+            cfg.feasTol, cfg.optTol);
+else
+    if isfield(opts,'feasTol') && ~isempty(opts.feasTol)
+        cfg.feasTol = opts.feasTol;
+        cfg.optTol  = opts.feasTol;
+    end
+    changeCobraSolverParams('LP', 'feasTol', cfg.feasTol);
+    changeCobraSolverParams('LP', 'optTol',  cfg.optTol);
 end
-changeCobraSolverParams('LP', 'feasTol', cfg.feasTol);
-changeCobraSolverParams('LP', 'optTol',  cfg.optTol);
 
 eps_ = cfg.epsilon;
 if isfield(opts,'epsilon') && ~isempty(opts.epsilon), eps_ = opts.epsilon; end

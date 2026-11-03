@@ -10,21 +10,34 @@ WHAT CHANGED IN THE DATA, and why the old numbers are not reused.
 The published panel came from Results_SPECTRA_CC_Runtime.mat, a single sweep
 of n = 20:20:10600 with one run per size, from which the notebook sampled ten
 points with linspace(0, 528, 10). This reads instead the benchmark in
-RuntimeComparisons/FASTERCC_comparison, which targets those same ten sizes
-(20, 1180, ..., 10580) by the same construction - sample n reactions to KEEP
-from the consistent Recon3D core - but runs 3 independent draws x 3 timing
-repeats per size per arm, on one machine with one solver and one tolerance.
+RuntimeComparisons/FASTERCC_comparison: the same construction - sample n
+reactions to KEEP from the consistent Recon3D core - on a round
+1,000-10,000 axis, with 3 independent draws x 3 timing repeats per size per
+arm, on one machine with one solver.
+
+THE TOLERANCE IS THE SOLVER DEFAULT (1e-6), matching what the published
+panel was produced under. The rest of this benchmark pins feasTol = 1e-9,
+which matters where the question is whether an answer is reproducible at
+scale, but costs the LP-based arms several fold and would make this panel
+incomparable with the published one. The 1e-9 rows are still in the timings
+file under a different tag; RUN_TAG selects which family is plotted.
 
 All four arms therefore have to come from this run. Quoting FASTERCC from here
 beside FastCC and SwiftCC numbers produced on different hardware, a different
 solver and a different tolerance would not be a comparison.
 
-AGGREGATION. runtimeSec in each CSV row is already the median of that draw's
-three timing repeats. Across the three draws we take the median again, so a
-bar is the median of medians and one unlucky draw cannot move it. The spread
-across draws is reported in the printed table, not drawn, because the
-published panel has no error bars on this axis and adding them to one arm
-only would mislead.
+AGGREGATION. A bar is the plain MEAN of every measurement in its cell: 3
+independent draws x 3 timing repeats = 9 runs, read from
+exp1_papersizes_timings.csv, which carries the individual timings. The
+per-run summary CSVs store only runtimeSec = median(times) per draw, so a
+figure built from those could only ever be a mean of medians; this averages
+the raw numbers instead.
+
+NO ERROR BARS, deliberately. A symmetric mean +/- std renders asymmetrically
+on a log axis and the lower whisker runs toward zero, which cannot be drawn
+and reads as a far larger relative uncertainty than there is; with runtimes
+spanning four orders of magnitude the bars are misleading rather than
+informative. The spread across draws is printed in the table below instead.
 """
 
 import glob
@@ -48,6 +61,11 @@ ARM_LABEL = {
 }
 ORDER = ["FastCC", "SwiftCC", "FASTERCC", "SPECTRA_CC"]
 
+# Which family of runs to plot. "dtol" is the solver-default tolerance pass on
+# the 1,000-10,000 axis, which is what the paper reports; drop this to
+# "rep3_x3_n" to plot the earlier feasTol = 1e-9 pass on the published sizes.
+RUN_TAG = "dtol"
+
 # The three original colours are untouched. FASTERCC takes a brighter teal
 # from the same family, so the panel reads as one palette.
 #
@@ -64,28 +82,32 @@ COLORS = {
 
 
 def load():
-    """Ten paper sizes x four arms, medians across the three draws."""
-    files = sorted(glob.glob(os.path.join(CSV_DIR, "variants_papersizes_*_a4.csv")))
-    if not files:
-        raise FileNotFoundError(f"no papersizes CSVs under {CSV_DIR}")
-    raw = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+    """Ten paper sizes x four arms, mean over all 9 runs per cell."""
+    timings = os.path.join(CSV_DIR, "exp1_papersizes_timings.csv")
+    raw = pd.read_csv(timings)
+    raw = raw[raw["tag"].str.contains(RUN_TAG, regex=False)]
+    if raw.empty:
+        raise ValueError(f"no timing rows tagged {RUN_TAG!r} in {timings}")
 
-    # A row with a non-empty error is an arm that did not finish on that
-    # instance. Dropping it keeps the median honest; the arm then has no bar
-    # at that size, which is the truthful rendering of "it did not run".
-    failed = raw[raw["error"].notna()]
-    raw = raw[raw["error"].isna()]
+    # An arm that failed on an instance contributes no timing rows at all, so
+    # it simply has no bar at that size - the truthful rendering of "it did
+    # not run". The per-run summaries carry the reason.
+    summ = pd.concat(
+        [pd.read_csv(f) for f in
+         sorted(glob.glob(os.path.join(CSV_DIR, f"*{RUN_TAG}*_a4.csv")))],
+        ignore_index=True)
+    failed = summ[summ["error"].notna()]
 
     raw["Algorithm"] = raw["arm"].map(ARM_LABEL)
     g = (
         raw.groupby(["nRxns", "Algorithm"])
         .agg(
-            runtime=("runtimeSec", "median"),
-            runtime_lo=("runtimeSec", "min"),
-            runtime_hi=("runtimeSec", "max"),
-            LPs=("nLPs", "median"),
-            nCons=("nConsistent", "median"),
-            draws=("runtimeSec", "size"),
+            runtime_mean=("runtimeSec", "mean"),
+            runtime_std=("runtimeSec", "std"),
+            LPs_mean=("nLPs", "mean"),
+            LPs_std=("nLPs", "std"),
+            nCons=("nConsistent", "mean"),
+            runs=("runtimeSec", "size"),
         )
         .reset_index()
         .rename(columns={"nRxns": "n_rxns"})
@@ -110,7 +132,8 @@ def plot_bar_plot(df, variable, algos, ax):
     # instead of silently shifting the remaining bars left.
     for k, algo in enumerate(algos):
         sub = df[df["Algorithm"] == algo].set_index("n_rxns").reindex(labels)
-        ax.bar(x + k * width, sub[variable].values, width, color=COLORS[algo], label=algo)
+        mean_values = sub[variable + "_mean"].values
+        ax.bar(x + k * width, mean_values, width, color=COLORS[algo], label=algo)
 
     # Set x-axis labels
     ax.set_xticks(x + width * (len(algos) - 1) / 2)
@@ -153,12 +176,12 @@ def main():
     print(f"wrote {out}")
 
     # The numbers behind the bars, for the manuscript text.
-    print("\n=== medians across 3 draws (each already a median of 3 timings) ===")
-    piv = df.pivot(index="n_rxns", columns="Algorithm", values="runtime")[ORDER]
+    print("\n=== mean over all runs per cell (3 draws x 3 timings) ===")
+    piv = df.pivot(index="n_rxns", columns="Algorithm", values="runtime_mean")[ORDER]
     print(piv.to_string(float_format=lambda v: f"{v:9.3f}"))
     print("\n=== LPs ===")
     print(
-        df.pivot(index="n_rxns", columns="Algorithm", values="LPs")[
+        df.pivot(index="n_rxns", columns="Algorithm", values="LPs_mean")[
             ["FastCC", "FASTERCC", "SPECTRA_CC"]
         ].to_string(float_format=lambda v: f"{v:7.0f}")
     )

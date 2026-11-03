@@ -1,0 +1,13 @@
+instance,arm,kind,clusters,nRemoved,nRxns,runtimeSec,runtimeMin,runtimeMax,nReps,nLPs,nConsistent,nDisagree,overclaim,underclaim,dirMismatch,error
+n06000_rep01,spectracc,keepn,0,4600,6000,1.176732,1.152103,1.281372,3,8,2237,2,NaN,NaN,NaN,
+n06000_rep01,fastercc_r0,keepn,0,4600,6000,NaN,NaN,NaN,3,NaN,0,2,NaN,NaN,NaN,MATLAB:sizeDimensionsMustMatch: Arrays have incompatible sizes for this operation.
+n06000_rep01,fastcc,keepn,0,4600,6000,493.921835,493.440364,497.035132,3,3622,2237,2,NaN,NaN,NaN,
+n06000_rep01,swiftcc,keepn,0,4600,6000,2.544695,2.521991,2.659451,3,1,2239,2,NaN,NaN,NaN,
+n06000_rep02,spectracc,keepn,0,4600,6000,1.178068,1.151294,1.179186,3,8,2459,3,NaN,NaN,NaN,
+n06000_rep02,fastercc_r0,keepn,0,4600,6000,15.518805,15.514824,15.632122,3,107,2459,3,NaN,NaN,NaN,
+n06000_rep02,fastcc,keepn,0,4600,6000,559.376144,486.920821,562.369003,3,3487,2459,3,NaN,NaN,NaN,
+n06000_rep02,swiftcc,keepn,0,4600,6000,2.95544,2.939292,3.02514,3,1,2462,3,NaN,NaN,NaN,
+n06000_rep03,spectracc,keepn,0,4600,6000,1.174847,1.174532,1.214898,3,8,2128,0,NaN,NaN,NaN,
+n06000_rep03,fastercc_r0,keepn,0,4600,6000,20.939606,19.699315,24.736499,3,124,2128,0,NaN,NaN,NaN,
+n06000_rep03,fastcc,keepn,0,4600,6000,568.707994,533.216786,600.530817,3,3720,2128,0,NaN,NaN,NaN,
+n06000_rep03,swiftcc,keepn,0,4600,6000,2.367626,2.323821,2.422758,3,1,2128,0,NaN,NaN,NaN,
