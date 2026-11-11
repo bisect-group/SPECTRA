@@ -21,3 +21,4 @@ Contents:
    gapfillForTasks
    community
    multiTissue
+   minimalReactome

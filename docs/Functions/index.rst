@@ -13,3 +13,4 @@ Contents:
    gapfilling
    verification
    community
+   reactome

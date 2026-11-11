@@ -1,0 +1,213 @@
+# The smallest network that still works
+
+A genome-scale reconstruction is hugely redundant.
+
+Most of its reactions are not needed to grow on any one carbon source, and a large subnetwork can be deleted without the model noticing. The **minimal reactome** is the smallest set of reactions that still meets a stated requirement, and this tutorial is about stating the requirement, because that is the part that decides the answer.
+
+## The problem
+
+Give every reaction a binary y tied to its flux by lb*y <= v <= ub*y, so that y = 0 pins the flux to zero, and minimise the weighted count subject to S.v = 0 and whatever the network has to achieve. That is minNetMILP with no core reactions at all: the requirements enter as bounds rather than as a core set.
+
+This was the question Burgard, Vaidyaraman and Maranas asked in 2001, and their answer is the thing to remember: 224 reactions for E. coli on glucose alone, 229 on acetate alone, 122 on a medium engineered to supply as much as possible. A minimal reactome is minimal **for an environment**, never in the abstract.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## A first run
+
+The textbook E. coli core model, on glucose, keeping half the growth it can manage.
+
+```
+model = readCbModel('ecoli_core_model.mat');
+
+M9 = {'EX_pi(e)','EX_h2o(e)','EX_h(e)','EX_nh4(e)','EX_o2(e)','EX_co2(e)'};
+onCarbon = @(label, carbon) struct('label', label, ...
+    'rxns', {[M9, {carbon}]}, ...
+    'lb', {[-1000*ones(1,numel(M9)), -10]});
+
+glucose = onCarbon('glucose','EX_glc(e)');
+result = minimalReactome(model, 'media', glucose, 'growthFraction', 0.5, 'seed', 0);
+disp(result.summary)
+```
+
+```
+%   minimal reactome: 42 of 95 reactions (tol 0.0001)
+%     growth on glucose: 0.704037 (needed 0.436961)
+%     26 reactions proved essential before the solve
+%     every condition met
+```
+
+42 reactions of 95. Note that it grows at 0.70 while only 0.44 was required: minimising the reaction count is not minimising growth, and the smallest network that can grow at half rate happens to manage rather more.
+
+## The medium decides
+
+The same model, the same requirement, a different carbon source.
+
+```
+acetate = onCarbon('acetate','EX_ac(e)');
+onGlucose = minimalReactome(model, 'media', glucose, 'growthFraction', 0.5, ...
+    'seed', 0, 'preprocess', false);
+onAcetate = minimalReactome(model, 'media', acetate, 'growthFraction', 0.5, ...
+    'seed', 0, 'preprocess', false);
+fprintf('glucose %d reactions, acetate %d\n', ...
+    numel(onGlucose.kept), numel(onAcetate.kept));
+```
+
+42 and 48. Acetate costs more because the model has to run gluconeogenesis and the glyoxylate shunt to live on it. This is the whole reason a minimal reactome is quoted with its medium attached.
+
+Everything the medium does not name is **closed**. A medium is defined as much by what it withholds as by what it supplies, and a model's default bounds usually leave far more open than you intend.
+
+## Several media are solved jointly
+
+Pass more than one and the result is the smallest network that works in **all** of them. Each becomes its own condition with its own flux vector, so this is not the smaller of the two answers, nor the union of them.
+
+```
+onBoth = minimalReactome(model, 'media', [glucose, acetate], ...
+    'growthFraction', 0.5, 'seed', 0, 'preprocess', false);
+disp(onBoth.summary)
+
+fprintf('\nglucose %d | acetate %d | jointly %d | union of the separate two %d\n', ...
+    numel(onGlucose.kept), numel(onAcetate.kept), numel(onBoth.kept), ...
+    numel(union(onGlucose.kept, onAcetate.kept)));
+```
+
+```
+%   glucose 42 | acetate 48 | jointly 51 | union of the separate two 57
+```
+
+**51, not 57.** Solving the two conditions together finds six reactions' worth of sharing that filling them one at a time cannot: a route the glucose answer needs anyway may serve the acetate condition too, but only if both are on the table when the choice is made. Taking the union of independent answers, which is what gapfillForTasks does in the opposite direction, gives a network that works but is not the smallest one.
+
+The cost is the problem size. Each condition is one more copy of the network, tied to the others by one binary per reaction:
+
+```
+%   minimalReactome: minimising 95 reactions over 2 condition(s)
+%   (glucose, acetate): 190 reactions and 144 metabolites in the joint problem
+```
+
+190 reactions for a 95-reaction model. A long list of conditions is what makes this expensive, not the model.
+
+## How much growth to keep
+
+growthFraction is a fraction of what the model achieves **in that medium**, measured before anything is removed, and it is measured separately in each. Use minGrowth instead to give an absolute rate. They are mutually exclusive: one is a rate and the other a fraction, so giving both would leave it ambiguous which applies.
+
+```
+lean = minimalReactome(model, 'media', glucose, 'growthFraction', 0.1, 'seed', 0);
+full = minimalReactome(model, 'media', glucose, 'growthFraction', 1.0, 'seed', 0);
+fprintf('a tenth of maximum: %d reactions, all of it: %d\n', ...
+    numel(lean.kept), numel(full.kept));
+```
+
+Requiring more can never need fewer reactions, which is a useful sanity check on any answer.
+
+## Requiring a product
+
+Products are required **alongside** growth, in the same flux distribution.
+
+```
+secreting = minimalReactome(model, 'media', glucose, 'growthFraction', 0.1, ...
+    'products', struct('id','EX_ac(e)','rate',1.0), 'seed', 0);
+disp(secreting.summary)
+```
+
+A metabolite identifier works too and is resolved to the boundary reaction the model already has for it:
+
+```
+% same thing, named as a metabolite
+% minimalReactome(model, 'media', glucose, 'growthFraction', 0.1, ...
+%     'products', struct('id','ac[e]','rate',1.0));
+```
+
+**Nothing is added to the network.** A metabolite the model does not exchange is refused rather than given a drain, because a drain added here would make the answer the smallest subnetwork of a model you do not have, feasible only because of the reaction that was added to measure it. Take the drain away and the same reaction set may produce nothing. Add it to your own model first, where it is visible and counted like any other.
+
+```
+try
+    minimalReactome(model, 'media', glucose, 'growthFraction', 0.1, ...
+        'products', struct('id','13dpg[c]','rate',1.0));
+catch err
+    fprintf('refused, as it should be: %s\n', err.identifier);
+end
+```
+
+## Tasks are separate conditions
+
+A medium, a growth rate and a product are one condition and share one flux vector. A task is not: taskConstraints closes the model's own exchanges and opens its own, so each task is a **different environment**, and a network that performs two tasks does so with two different flux distributions. The reactions are shared; the fluxes are not.
+
+```
+HYDROLYSIS = {'atp[c]','h2o[c]','adp[c]','pi[c]','h[c]'};
+AEROBIC = {'glc-D[e]','o2[e]','pi[e]','h2o[e]','h[e]'};
+RESPIRED = {'co2[e]','h2o[e]','h[e]'};
+equation = taskEquation(HYDROLYSIS, [-1 -1 1 1 1], [1 1000]);
+atpTask = metabolicTask('aerobic_atp', 'inputs', AEROBIC, ...
+    'outputs', RESPIRED, 'equations', equation);
+
+withTask = minimalReactome(model, 'media', glucose, 'growthFraction', 0.5, ...
+    'tasks', atpTask, 'seed', 0, 'preprocess', false);
+disp(withTask.summary)
+
+outcome = checkTask(withTask.model, atpTask);
+fprintf('the result still performs the task: %d\n', outcome.ok);
+```
+
+A task the model itself cannot perform is refused rather than required of a subset of it: gap-fill towards the task first, with gapfillForTasks. A task marked shouldFail is a negative control and cannot be required at all, so it is skipped with a note.
+
+## Keeping reactions, and making them work
+
+keepRxns retains reactions whatever they do. They are given no binary, so they cost nothing and cannot be removed — MinReact's "reactions to be retained".
+
+```
+held = minimalReactome(model, 'media', glucose, 'growthFraction', 0.5, ...
+    'keepRxns', {'SUCDi','FRD7'}, 'seed', 0, 'preprocess', false);
+fprintf('%d reactions, SUCDi in: %d, FRD7 in: %d\n', numel(held.kept), ...
+    ismember('SUCDi', held.kept), ismember('FRD7', held.kept));
+```
+
+They are also **forced to carry flux**, which is the stronger statement and the one that usually matters: a reaction present but idle is not a reaction the network uses. Where a condition blocks one, forcing it would make the whole problem infeasible, so it is kept without being forced there and reported in keptButBlocked.
+
+## Weights
+
+weights says what each reaction costs to keep, as a vector in model order. The usual reason is evidence: a reaction the organism's genome supports should cost less than one it does not. A cost of 0 makes a reaction free to keep but still removable — use keepRxns to force one in. Negative weights are refused, since they would pay the objective to keep a reaction, which is not what minimising a count means.
+
+## Alternative minimal reactomes
+
+```
+three = minimalReactome(model, 'media', glucose, 'growthFraction', 0.5, ...
+    'nSol', 3, 'seed', 0, 'preprocess', false);
+fprintf('%d solutions, sizes %s\n', numel(three), ...
+    mat2str(arrayfun(@(r) numel(r.kept), three)'));
+```
+
+Sizes 42, 42, 43. Each solution is forbidden from recurring exactly before the next solve, so they are distinct but not necessarily all of them, and only the first is guaranteed minimal.
+
+## Deciding what can be decided first
+
+preprocess, on by default, settles two things before the MILP starts, and both are **exact**, so the optimum cannot change — only the number of binaries the solver branches on.
+
+A reaction that can carry no flux in **any** condition is in no feasible solution, so it is deleted outright. A reaction some condition is **infeasible without** is in every feasible solution, so it is forced in and given no binary. Note the asymmetry: blocked is an intersection over conditions and essential a union. A reaction useless under the growth medium may be the only route a task has, while a reaction some task cannot do without has to be in the answer whatever the growth condition thinks of it.
+
+```
+with = minimalReactome(model, 'media', glucose, 'growthFraction', 0.5, 'seed', 0);
+without = minimalReactome(model, 'media', glucose, 'growthFraction', 0.5, ...
+    'seed', 0, 'preprocess', false);
+fprintf('with preprocessing %d reactions, without %d\n', ...
+    numel(with.kept), numel(without.kept));
+fprintf('proved essential before the solve: %d\n', numel(with.essential));
+```
+
+42 either way, with 26 of the 95 proved essential and 8 proved blocked, leaving 61 binaries instead of 95. Because the growth condition carries the biomass lower bound, "infeasible without" there means "cannot reach the required growth rate without", which is the right notion rather than a growth comparison — and it is the same notion for a task, which has no growth at all.
+
+## Two things to watch
+
+**The binaries are not the whole answer.** A binary the solver leaves at its integrality tolerance rather than at exactly zero still multiplies a flux bound of up to a thousand, so a reaction the solution genuinely depends on can be reported as switched off, and dropping it breaks the chain it belonged to. Any reaction carrying more than inclusionCutoff — tol*1e-7, so 1e-11 at the default tolerance — is therefore kept whatever its binary says. The count can consequently sit a little above the MILP's own objective value. That trade is deliberate, and it is the same one spectraME makes.
+
+**Nothing is added to the network, ever.** This is worth restating because it is the assumption behind every number above. The answer is always a subset of the model you passed in, so it is only as good as that model: a minimal reactome of a draft reconstruction inherits the draft's gaps.
+
+## See also
+
+Tutorial_gapfillForTasks, the opposite operation with the same vocabulary of tasks: gap-filling adds reactions until the tasks pass, this removes reactions while they still do. Tutorial_formulations, for what minNetMILP is doing. The functions used here are minimalReactome, minNet, metabolicTask and checkTask.
