@@ -5,7 +5,8 @@ Each tutorial is a MATLAB live script. The ``.mlx`` files in this directory
 are runnable as they stand: open one in MATLAB and step through it.
 
 Start with :doc:`consistency`, which every other routine depends on, then
-:doc:`extraction`. The rest can be read in any order.
+:doc:`extraction`. The rest can be read in any order, except that
+:doc:`multiTissue` assumes :doc:`community`.
 
 Contents:
 
@@ -18,3 +19,5 @@ Contents:
    formulations
    gapfillForGrowth
    gapfillForTasks
+   community
+   multiTissue

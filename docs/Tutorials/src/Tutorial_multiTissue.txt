@@ -1,0 +1,161 @@
+# Multi-tissue models
+
+A multi-tissue model is one network per tissue, joined by the places they exchange metabolites: blood, an interstitial space, the gut lumen.
+
+The networks may be copies of a single reconstruction, which is what you want when extracting multi-tissue context-specific models, or genuinely different models, one per tissue. Either way each tissue keeps its own copy of every reaction and every metabolite it has, so the same reaction running in liver and in muscle is two separate reactions carrying separate flux. What connects them is a **pool**, a compartment several tissues can reach, and what distinguishes them is their networks, their bounds, which pools they reach, and which reactions they are required to keep.
+
+Nothing in the construction distinguishes a tissue from an organism, so this is Tutorial_community with the replication done for you. Read that one first for pools, coupling and anchors; this page is about the part that is specific to a body.
+
+## How things are named
+
+Everything a tissue owns is tagged with that tissue's name. A reaction PGI becomes PGI__liver in one tissue and PGI__muscle in another; the external metabolite glc_D[e] becomes glc_D[e__liver] and glc_D[e__muscle]. The tag goes on the compartment rather than after it, so that each tissue keeps a private external compartment and COBRA's own parsing of a trailing [c] still works. The tag is a __ suffix, which is why tissue names may not contain __ themselves.
+
+A pool metabolite is **not** tagged, because it belongs to no tissue: blood glucose is glc_D[Bl], one metabolite that every tissue on the blood can reach. Between a tissue's own external metabolite and the pool's sits a **transport**, one per tissue per metabolite per pool, named TR_<metabolite>_<pool>__<tissue>. The pool reaches the outside world through an **exchange**, EX_<metabolite>[<pool>].
+
+That arrangement — a private external compartment per tissue, and a transport into each pool it reaches — is what lets one tissue belong to two pools at once, and it is what gives you somewhere to attach a measured uptake rate.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## A three-tissue body from Recon3D
+
+Liver, muscle and gut. All three sit on the blood; the gut also faces a lumen that nothing else reaches.
+
+```
+recon = readCbModel('Recon3DModel_301.mat');
+fprintf('Recon3D: %d reactions, %d metabolites, %d external\n', ...
+    numel(recon.rxns), numel(recon.mets), sum(endsWith(recon.mets,'[e]')));
+
+pools = struct('name',  {'Bl', 'Lu'}, ...
+               'units', {{'liver','muscle','gut'}, {'gut'}});
+
+body = buildMultiTissueModel(recon, {'liver','muscle','gut'}, pools, {'Bl'}, ...
+    'anchorReactions', 'biomass_maintenance', 'couple', false, 'check', false);
+
+fprintf('%d reactions, %d metabolites, %d community exchanges\n', ...
+    numel(body.model.rxns), numel(body.model.mets), ...
+    numel(body.communityExchanges));
+```
+
+Two seconds, and 35015 reactions over 20663 metabolites from a 10600-reaction reconstruction. Where the extra reactions went:
+
+```
+for k = 1:numel(body.units)
+    fprintf('  %-7s %6d reactions, %4d transports (Bl %d, Lu %d)\n', ...
+        body.units(k).name, numel(body.units(k).rxns), ...
+        sum(startsWith(body.units(k).rxns,'TR_')), ...
+        sum(contains(body.units(k).rxns,'_Bl__')), ...
+        sum(contains(body.units(k).rxns,'_Lu__')));
+end
+```
+
+```
+%     liver    10619 reactions, 1579 transports (Bl 1579, Lu 0)
+%     muscle   10619 reactions, 1579 transports (Bl 1579, Lu 0)
+%     gut      12198 reactions, 3158 transports (Bl 1579, Lu 1579)
+```
+
+Each tissue carries Recon3D's 10600 reactions less its 1560 own exchanges, plus a transport for each of the 1579 external metabolites into each pool it belongs to. The gut has twice as many as the others because it is in two pools, and that is the whole point of the arrangement: it can take up from the lumen and release into the blood, with a separate bound on each.
+
+## The interface pool stays closed
+
+Only the blood was named in environment, so only the blood carries exchanges.
+
+```
+fprintf('EX_glc_D[Bl]: %d   EX_glc_D[Lu]: %d\n', ...
+    ismember('EX_glc_D[Bl]', body.model.rxns), ...
+    ismember('EX_glc_D[Lu]', body.model.rxns));
+```
+
+1 and 0. This matters more than it looks. Had the lumen been given exchanges too, the gut could take glucose straight out of the environment through the lumen and secrete it into the blood, and the liver and muscle would be fed by a route that does not exist in a body. A pool that merely links tissues has to stay closed, which is why environment has no sensible default when there is more than one pool and buildCommunityModel refuses to guess one.
+
+All 1579 community exchanges are export-only until poolMedium says otherwise, so the body as built above cannot take up anything at all. That is deliberate — see Tutorial_community — and it means the diet is something you state:
+
+```
+% diet = struct('met', {'glc_D[e]','o2[e]', ...}, ...
+%               'lb',  {-10, -1000, ...}, 'ub', {1000, 1000, ...});
+% body = buildMultiTissueModel(..., 'poolMedium', diet);
+```
+
+poolMedium is keyed by metabolite as Recon3D spells it, and a name matching no metabolite is reported rather than ignored.
+
+## Bounding one tissue's uptake
+
+This is what the transports are for. A measured rate is about one tissue taking up one metabolite from one place, which is exactly one transport reaction, so name it:
+
+```
+% the gut's glucose uptake from the lumen, and nothing else's
+% 'linkBounds', struct('rxn', {'TR_glc_D_Lu__gut'}, 'lb', {-5}, 'ub', {1000})
+```
+
+Keying by met instead sets the same bound on every tissue's transport of that metabolite, which is the broader statement and rarely what a measurement says. A transport named in linkBounds that does not exist is reported, because a misspelt one would otherwise leave its bounds silently wide open.
+
+## Tissues that are not copies of each other
+
+Give a cell array of one model per tissue, in the same order, and each keeps its own network.
+
+```
+% body = buildMultiTissueModel({liverGEM, muscleGEM}, {'liver','muscle'}, ...
+%     struct('name',{'Bl'},'units',{{'liver','muscle'}}), {'Bl'}, ...
+%     'anchorReactions', {'biomass_maintenance','ATPM'});
+```
+
+Anything other than one model per tissue, or one model for all of them, is refused rather than recycled:
+
+```
+try
+    buildMultiTissueModel({recon, recon}, {'liver','muscle','gut'}, pools, {'Bl'});
+catch err
+    fprintf('refused, as it should be: %s\n', err.message);
+end
+```
+
+## Why pooled rather than shared
+
+A community usually wants mode 'shared', which drops the transports and shares the external compartment outright. Here it is the wrong choice, and the comparison shows what it costs and what it buys:
+
+```
+compact = buildMultiTissueModel(recon, {'liver','muscle','gut'}, ...
+    struct('name',{'Bl'},'units',{{'liver','muscle','gut'}}), {'Bl'}, ...
+    'mode', 'shared', 'anchorReactions', 'biomass_maintenance', ...
+    'couple', false, 'check', false);
+fprintf('pooled %d reactions, shared %d\n', ...
+    numel(body.model.rxns), numel(compact.model.rxns));
+```
+
+35015 against 28699 — the 6316 transports. In exchange, 'shared' allows only one pool, so there is no lumen the gut alone can reach, and it has no transports, so there is nothing for a per-tissue uptake rate to attach to. Both of those are the things a body needs, which is why 'pooled' is the default and why the tissues pay for it.
+
+## What the anchor is, and what coupling costs
+
+A tissue is rarely growing, so its anchor is usually a maintenance or demand reaction rather than biomass. It has to be said rather than guessed: coupling every reaction of a tissue to the wrong one would throttle or free the whole tissue with no error anywhere. Above it is Recon3D's own biomass_maintenance, passed as a single name because every tissue is a copy of the same reconstruction.
+
+Coupling was switched off in the examples above because at this scale it is the expensive part — 58.6 s against 2.0 s for the build itself, spent in the COBRA toolbox's own coupleRxnList2Rxn adding two constraint rows per reaction. Switch it on when you are going to simulate:
+
+```
+% body = buildMultiTissueModel(recon, tissues, pools, {'Bl'}, ...
+%     'anchorReactions', 'biomass_maintenance', 'poolMedium', diet);
+```
+
+Without it a tissue whose anchor carries no flux can still run its metabolism and feed the others, which in a body means a dead organ supplying a live one.
+
+## Extracting context-specific tissues
+
+The joined model is an ordinary COBRA model, so the extraction works on it as it would on any other. The core set is where each tissue's identity comes from: name the reactions that tissue's data supports, tagged by it.
+
+```
+% core = [strcat(liverCore,'__liver'); strcat(muscleCore,'__muscle')];
+% tissueSpecific = spectraME(body.model, core, 1e-4, 'stoichiometry', weights);
+```
+
+Every tissue starting as a copy of one reconstruction is what makes this work: what distinguishes liver from muscle in the result is which reactions were required of each, not which network they started from.
+
+## See also
+
+Tutorial_community, for pools, coupling, anchors and the cross-feeding this is built on. Tutorial_extraction, for the core sets and weights the last section passes over. The functions used here are buildMultiTissueModel and buildCommunityModel.

@@ -1,0 +1,231 @@
+# Microbial community models
+
+A community is several organisms sharing an environment.
+
+A community model puts each member's network side by side in one model, tags each one so its reactions cannot be confused with another's, and gives them somewhere to pass metabolites to each other. One organism's secretion arrives there and becomes available to the rest, which is what makes cross-feeding possible and what makes the community more than the sum of its members.
+
+## Units, pools and exchanges
+
+Three words carry the whole design.
+
+A **unit** is one member's whole network. Everything belonging to it gets its name as a tag, so PFK in unit A becomes PFK__A. Units never share a reaction, even where two of them carry the same one: E. coli's PFK and Bacteroides' PFK are separate reactions with separate fluxes, because the two organisms run them independently.
+
+A **pool** is a compartment that several units can reach. It is the only way one unit's output becomes another's input. A community usually has a single pool, the medium everyone sits in, but it may have more, where some members are in contact with each other and not with the rest.
+
+An **exchange** connects a pool to the environment outside the whole system. Only the pools you nominate get them. This is deliberate and it matters: a pool that exists purely to link two units must stay closed, or those two could dump metabolites straight out of the system and bypass everything else.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## A toy community, end to end
+
+Two organisms. The feeder ferments glucose to acetate; the eater oxidises acetate and cannot touch glucose at all.
+
+```
+feeder = createModel();
+feeder = addReaction(feeder,'UP_glc','reactionFormula','glc[e] -> g6p[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'FERM','reactionFormula','g6p[c] -> ac[e] + atp[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'GROW','reactionFormula','atp[c] -> ', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'EX_glc(e)','reactionFormula','glc[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'EX_ac(e)','reactionFormula','ac[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+feeder = changeObjective(feeder,'GROW');
+
+eater = createModel();
+eater = addReaction(eater,'UP_ac','reactionFormula','ac[e] -> accoa[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'TCA','reactionFormula','accoa[c] -> co2[e] + 3 atp[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+% Overflow: acetate burnt off without conserving any of it as ATP. Nothing
+% in the stoichiometry ties this to growth, which is what makes it the
+% reaction to watch when coupling is discussed below.
+eater = addReaction(eater,'OVERFLOW','reactionFormula','accoa[c] -> co2[e]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'GROW','reactionFormula','atp[c] -> ', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'EX_ac(e)','reactionFormula','ac[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'EX_co2(e)','reactionFormula','co2[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+eater = changeObjective(eater,'GROW');
+```
+
+Only glucose is on offer. A pool exchange is export-only until the medium says otherwise, which is deliberate: a joined model that silently supplies everything is the more dangerous default.
+
+```
+glucoseOnly = struct('met',{'glc[e]'},'lb',{-10},'ub',{1000});
+community = buildCommunityModel({feeder, eater}, {'F','E'}, ...
+    'poolMedium', glucoseOnly);
+
+fprintf('%d reactions, %d metabolites\n', ...
+    numel(community.model.rxns), numel(community.model.mets));
+disp(community.model.rxns')
+```
+
+Fourteen reactions and eleven metabolites. Each unit's own exchanges are gone, replaced by transports into the pool — TR_glc_u__F, TR_ac_u__F, TR_ac_u__E, TR_co2_u__E — and the pool carries the three exchanges that reach the environment.
+
+```
+sol = optimizeCbModel(community.model);
+fprintf('total %.4g | feeder %.4g | eater %.4g\n', sol.f, ...
+    sol.v(findRxnIDs(community.model,'GROW__F')), ...
+    sol.v(findRxnIDs(community.model,'GROW__E')));
+```
+
+Total 40, of which the feeder takes 10 and the eater 30. The eater never sees glucose; every unit of its growth came through the pool.
+
+## Showing that the cross-feeding is real
+
+Maximise the eater on its own and it still reaches 30. Then shut the feeder's fermentation off and it reaches nothing at all.
+
+```
+onlyEater = changeObjective(community.model,'GROW__E');
+alone = optimizeCbModel(onlyEater);
+
+starved = changeRxnBounds(onlyEater,'FERM__F',0,'b');
+cut = optimizeCbModel(starved);
+
+fprintf('eater alone:       %.4g\n', alone.f);
+fprintf('feeder shut down:  %.4g\n', cut.f);
+```
+
+30 and 0. Acetate reaches the eater only because the feeder puts it in the pool.
+
+## How the pool is built
+
+mode 'shared' is what a community usually wants: the units share the external compartment itself, one row of the stoichiometric matrix per exchangeable metabolite for the whole community.
+
+```
+shared = buildCommunityModel({feeder, eater}, {'F','E'}, ...
+    'mode', 'shared', 'poolMedium', glucoseOnly);
+fprintf('pooled %d reactions, shared %d\n', ...
+    numel(community.model.rxns), numel(shared.model.rxns));
+```
+
+The default, mode 'pooled', gives each unit a private external compartment and a transport into the pool. That buys two things a community rarely needs and always pays for: **several pools**, so a member can meet one group in one place and another group somewhere else, and **per-unit bounds** on what crosses into each pool, through linkBounds.
+
+It costs one transport per unit per exchangeable metabolite. Ten copies of the E. coli core model, which has twenty exchanges:
+
+```
+%                        Reactions   Metabolites
+%   shared, 10 copies          770           540
+%   pooled, 10 copies          970           740
+```
+
+Two hundred extra reactions here; a hundred organisms across a thousand metabolites is a hundred thousand, which is the difference between a model you can build and one you cannot. Tutorial_multiTissue is where that structure earns its keep: tissues genuinely do not all meet in the same place, and the uptake rates you measure are per tissue.
+
+## Which metabolites are exchangeable
+
+Reconstructions do not agree on how to write an extracellular metabolite, and two questions follow with different answers.
+
+**Which compartment is the outside one?** This decides which metabolites can reach the pool at all. It is worked out per unit, not once for the community, because the models need not agree: one may call it e and another extracellular. A compartment with a recognised name wins; failing that, the one carrying the most single-metabolite reactions; failing that, 'e', with a line saying so. Say it yourself when you have any doubt:
+
+```
+% one name for every unit, or one per unit in order
+% buildCommunityModel(models, names, 'externalCompartment', 'ext');
+% buildCommunityModel(models, names, 'externalCompartment', {'e','ext'});
+```
+
+**Which metabolites are the same compound?** Two units meet in the pool only if their metabolites resolve to the same name. By default the compartment is stripped, which resolves glc-D[e] and glc-D_e to the same glc-D, so those two spellings share one pool row in either mode.
+
+What stripping cannot do is reconcile identifiers from *different namespaces*. BiGG writes glucose glc__D[e] and AGORA writes it glc_D[e]: the same molecule under two schemes, and no amount of suffix-stripping will tell you so. If every identifier differed, nothing would cross-feed and you would be told:
+
+```
+%   buildCommunityModel: pool 'u' is shared by 2 units but not one metabolite
+%   in it is reached by more than one of them, so nothing can cross-feed. The
+%   usual cause is identifiers from different namespaces; pass metaboliteKey
+%   to say how they correspond.
+```
+
+In practice the mismatch is *partial*, which is worse, because there is nothing for that check to catch: the metabolites both schemes spell alike meet in the pool, the community looks like it is cross-feeding, and glucose is not among them. metaboliteKey is the way out. Given a metabolite identifier, return the name of the thing it is:
+
+```
+% Drop the compartment, then collapse BiGG's doubled underscore.
+sameCompound = @(met) strrep(regexprep(met,'(\[\w+\]|_\w)$',''), '__', '_');
+% buildCommunityModel(models, names, 'metaboliteKey', sameCompound);
+```
+
+metaboliteKey *replaces* the default rule rather than adding to it, so it has to handle every metabolite, not just the ones you are fixing. A key that rewrites only the identifiers you noticed leaves every other one with its compartment attached, so ac[e] and ac_e stop resolving together. Strip the compartment in your key, or you will lose the metabolites that were already fine.
+
+## Where the bounds go
+
+poolMedium is keyed by metabolite as your models spell it, resolved by looking each name up among the metabolites that exist rather than by stripping suffixes. A name matching nothing is reported rather than silently ignored, which is how you find out a medium file and a model disagree.
+
+linkBounds bounds what crosses between one unit and one pool, and can be keyed either way. By met it applies to every unit's transport of that metabolite; by rxn it names one transport, TR_<metabolite>_<pool>__<unit>, which is what a measured per-unit rate is actually about.
+
+```
+% every unit's acetate transport
+% 'linkBounds', struct('met',{'ac[e]'},'lb',{-5},'ub',{1000})
+% just the eater's
+% 'linkBounds', struct('rxn',{'TR_ac_u__E'},'lb',{-5},'ub',{1000})
+```
+
+## Coupling, and what a unit is gated on
+
+Without coupling, a unit that is not growing can still run its metabolism and feed the others — a dead organism donating metabolites, which is not a community so much as a bookkeeping error. Coupling ties every reaction of a unit to its own anchor: a reaction may carry couplingFactor times the anchor's flux, plus couplingThreshold.
+
+```
+loose = buildCommunityModel({feeder, eater}, {'F','E'}, ...
+    'poolMedium', glucoseOnly, 'couple', false, 'check', false);
+
+held = changeRxnBounds(community.model,'GROW__E',0,'b');
+held = optimizeCbModel(changeObjective(held,'OVERFLOW__E'));
+
+free = changeRxnBounds(loose.model,'GROW__E',0,'b');
+free = optimizeCbModel(changeObjective(free,'OVERFLOW__E'));
+
+fprintf('coupled, eater dead:    OVERFLOW runs at %.4g\n', held.f);
+fprintf('uncoupled, eater dead:  OVERFLOW runs at %.4g\n', free.f);
+```
+
+0.01 and 10. Coupled, the eater's only remaining slack is couplingThreshold; uncoupled, a unit that cannot grow at all still strips the pool of every acetate the feeder puts into it.
+
+The anchor is the reaction the coupling gates on. It is taken from the model's objective, or from a reaction named biomass*, and refused rather than guessed when neither settles it — coupling a unit to the wrong reaction would throttle or free the whole unit with no error anywhere. Pass biomassReactions to say it outright.
+
+The default couplingFactor of 1000 is the published value for a biomass anchor running at around 1. An anchor that runs at a different scale needs a different factor, and that is what the check reports:
+
+```
+%   buildCommunityModel: at its best E runs GROW__E at 0.0004, so coupling
+%   caps its other reactions at 0.41. Raise couplingFactor or set couple to
+%   false.
+```
+
+Each unit's measured capacity is in the units field, alongside the anchor and how it was decided:
+
+```
+for k = 1:numel(community.units)
+    fprintf('%-4s anchor %-10s (%s), capacity %.4g\n', ...
+        community.units(k).name, community.units(k).anchor, ...
+        community.units(k).anchorSource, community.units(k).anchorCapacity);
+end
+```
+
+The capacity is measured on the community, not on the unit alone: a unit that cannot grow in isolation may grow perfectly well on what the others secrete, and reporting it as dead would be a false alarm. One solve maximises every anchor at once, which lands on an arbitrary point of the optimal face, so a unit can read zero merely for having lost a tie to another on the same nutrient. Any such reading is taken again on its own.
+
+## Drafts and databases
+
+Pass databases and each unit holds a whole universal model, bounded by its own reconstruction where the two agree. The reactions only the database has are recorded as candidates to gap-fill in, which is what joint community gap-filling then works on.
+
+```
+% filled = buildCommunityModel(drafts, names, 'databases', universal, ...
+%                              'poolMedium', medium);
+% filled.databaseReactions{1}   % what unit 1 may draw on
+% filled.draftReactions{1}      % what it already had
+```
+
+Gap-filling the units together rather than one at a time lets a gap in one be closed by another's secretion instead of by a new reaction, which is why the community result is the smaller one.
+
+## See also
+
+Tutorial_multiTissue, for the same construction applied to the tissues of a body. The functions used here are buildCommunityModel and buildMultiTissueModel.
+

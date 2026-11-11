@@ -1,0 +1,196 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2026a"><title>Multi-tissue models</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 28.8px; min-height: 0px; white-space: pre; color: rgb(192, 76, 11); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 24px; font-weight: 400; text-align: left;  }
+._richTextNode {white-space: break-spaces;}
+.S1 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S2 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 25px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.CodeBlock { background-color: #F5F5F5; margin: 10px 0 10px 0; }
+.S3 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 1px solid rgb(217, 217, 217); border-bottom: 0px none rgb(33, 33, 33); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S4 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 0px none rgb(33, 33, 33); border-radius: 0px; padding: 0px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 1px solid rgb(217, 217, 217); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }</style></head><body><div class = rtcContent><h1  class = 'S0'><span class="_richTextNode">Multi-tissue models</span></h1><div  class = 'S1'><span class="_richTextNode">A multi-tissue model is one network per tissue, joined by the places they exchange metabolites: blood, an interstitial space, the gut lumen.</span></div><div  class = 'S1'><span class="_richTextNode">The networks may be copies of a single reconstruction, which is what you want when extracting multi-tissue context-specific models, or genuinely different models, one per tissue. Either way each tissue keeps its own copy of every reaction and every metabolite it has, so the same reaction running in liver and in muscle is two separate reactions carrying separate flux. What connects them is a **pool**, a compartment several tissues can reach, and what distinguishes them is their networks, their bounds, which pools they reach, and which reactions they are required to keep.</span></div><div  class = 'S1'><span class="_richTextNode">Nothing in the construction distinguishes a tissue from an organism, so this is Tutorial_community with the replication done for you. Read that one first for pools, coupling and anchors; this page is about the part that is specific to a body.</span></div><h2  class = 'S2'><span class="_richTextNode">How things are named</span></h2><div  class = 'S1'><span class="_richTextNode">Everything a tissue owns is tagged with that tissue's name. A reaction PGI becomes PGI__liver in one tissue and PGI__muscle in another; the external metabolite glc_D[e] becomes glc_D[e__liver] and glc_D[e__muscle]. The tag goes on the compartment rather than after it, so that each tissue keeps a private external compartment and COBRA's own parsing of a trailing [c] still works. The tag is a __ suffix, which is why tissue names may not contain __ themselves.</span></div><div  class = 'S1'><span class="_richTextNode">A pool metabolite is **not** tagged, because it belongs to no tissue: blood glucose is glc_D[Bl], one metabolite that every tissue on the blood can reach. Between a tissue's own external metabolite and the pool's sits a **transport**, one per tissue per metabolite per pool, named TR_&lt;metabolite&gt;_&lt;pool&gt;__&lt;tissue&gt;. The pool reaches the outside world through an **exchange**, EX_&lt;metabolite&gt;[&lt;pool&gt;].</span></div><div  class = 'S1'><span class="_richTextNode">That arrangement — a private external compartment per tissue, and a transport into each pool it reaches — is what lets one tissue belong to two pools at once, and it is what gives you somewhere to attach a measured uptake rate.</span></div><h2  class = 'S2'><span class="_richTextNode">Setting up</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >initCobraToolbox(false)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >changeCobraSolver(</span><span style="color: rgb(167, 9, 245);">'gurobi'</span><span >,</span><span style="color: rgb(167, 9, 245);">'all'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% Assumes this live script is run from docs/Tutorials; edit if not.</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >spectraRoot = fileparts(fileparts(pwd));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >addpath(genpath(fullfile(spectraRoot,</span><span style="color: rgb(167, 9, 245);">'src'</span><span >)));</span></span></div></div></div><h2  class = 'S2'><span class="_richTextNode">A three-tissue body from Recon3D</span></h2><div  class = 'S1'><span class="_richTextNode">Liver, muscle and gut. All three sit on the blood; the gut also faces a lumen that nothing else reaches.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >recon = readCbModel(</span><span style="color: rgb(167, 9, 245);">'Recon3DModel_301.mat'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'Recon3D: %d reactions, %d metabolites, %d external\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    numel(recon.rxns), numel(recon.mets), sum(endsWith(recon.mets,</span><span style="color: rgb(167, 9, 245);">'[e]'</span><span >)));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >pools = struct(</span><span style="color: rgb(167, 9, 245);">'name'</span><span >,  {</span><span style="color: rgb(167, 9, 245);">'Bl'</span><span >, </span><span style="color: rgb(167, 9, 245);">'Lu'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >               </span><span style="color: rgb(167, 9, 245);">'units'</span><span >, {{</span><span style="color: rgb(167, 9, 245);">'liver'</span><span >,</span><span style="color: rgb(167, 9, 245);">'muscle'</span><span >,</span><span style="color: rgb(167, 9, 245);">'gut'</span><span >}, {</span><span style="color: rgb(167, 9, 245);">'gut'</span><span >}});</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >body = buildMultiTissueModel(recon, {</span><span style="color: rgb(167, 9, 245);">'liver'</span><span >,</span><span style="color: rgb(167, 9, 245);">'muscle'</span><span >,</span><span style="color: rgb(167, 9, 245);">'gut'</span><span >}, pools, {</span><span style="color: rgb(167, 9, 245);">'Bl'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'anchorReactions'</span><span >, </span><span style="color: rgb(167, 9, 245);">'biomass_maintenance'</span><span >, </span><span style="color: rgb(167, 9, 245);">'couple'</span><span >, false, </span><span style="color: rgb(167, 9, 245);">'check'</span><span >, false);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'%d reactions, %d metabolites, %d community exchanges\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    numel(body.model.rxns), numel(body.model.mets), </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    numel(body.communityExchanges));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Two seconds, and 35015 reactions over 20663 metabolites from a 10600-reaction reconstruction. Where the extra reactions went:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">for </span><span >k = 1:numel(body.units)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'  %-7s %6d reactions, %4d transports (Bl %d, Lu %d)\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        body.units(k).name, numel(body.units(k).rxns), </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        sum(startsWith(body.units(k).rxns,</span><span style="color: rgb(167, 9, 245);">'TR_'</span><span >)), </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        sum(contains(body.units(k).rxns,</span><span style="color: rgb(167, 9, 245);">'_Bl__'</span><span >)), </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        sum(contains(body.units(k).rxns,</span><span style="color: rgb(167, 9, 245);">'_Lu__'</span><span >)));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%     liver    10619 reactions, 1579 transports (Bl 1579, Lu 0)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%     muscle   10619 reactions, 1579 transports (Bl 1579, Lu 0)</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%     gut      12198 reactions, 3158 transports (Bl 1579, Lu 1579)</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Each tissue carries Recon3D's 10600 reactions less its 1560 own exchanges, plus a transport for each of the 1579 external metabolites into each pool it belongs to. The gut has twice as many as the others because it is in two pools, and that is the whole point of the arrangement: it can take up from the lumen and release into the blood, with a separate bound on each.</span></div><h2  class = 'S2'><span class="_richTextNode">The interface pool stays closed</span></h2><div  class = 'S1'><span class="_richTextNode">Only the blood was named in environment, so only the blood carries exchanges.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'EX_glc_D[Bl]: %d   EX_glc_D[Lu]: %d\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    ismember(</span><span style="color: rgb(167, 9, 245);">'EX_glc_D[Bl]'</span><span >, body.model.rxns), </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    ismember(</span><span style="color: rgb(167, 9, 245);">'EX_glc_D[Lu]'</span><span >, body.model.rxns));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">1 and 0. This matters more than it looks. Had the lumen been given exchanges too, the gut could take glucose straight out of the environment through the lumen and secrete it into the blood, and the liver and muscle would be fed by a route that does not exist in a body. A pool that merely links tissues has to stay closed, which is why environment has no sensible default when there is more than one pool and buildCommunityModel refuses to guess one.</span></div><div  class = 'S1'><span class="_richTextNode">All 1579 community exchanges are export-only until poolMedium says otherwise, so the body as built above cannot take up anything at all. That is deliberate — see Tutorial_community — and it means the diet is something you state:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% diet = struct('met', {'glc_D[e]','o2[e]', ...}, ...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%               'lb',  {-10, -1000, ...}, 'ub', {1000, 1000, ...});</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% body = buildMultiTissueModel(..., 'poolMedium', diet);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">poolMedium is keyed by metabolite as Recon3D spells it, and a name matching no metabolite is reported rather than ignored.</span></div><h2  class = 'S2'><span class="_richTextNode">Bounding one tissue's uptake</span></h2><div  class = 'S1'><span class="_richTextNode">This is what the transports are for. A measured rate is about one tissue taking up one metabolite from one place, which is exactly one transport reaction, so name it:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% the gut's glucose uptake from the lumen, and nothing else's</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% 'linkBounds', struct('rxn', {'TR_glc_D_Lu__gut'}, 'lb', {-5}, 'ub', {1000})</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Keying by met instead sets the same bound on every tissue's transport of that metabolite, which is the broader statement and rarely what a measurement says. A transport named in linkBounds that does not exist is reported, because a misspelt one would otherwise leave its bounds silently wide open.</span></div><h2  class = 'S2'><span class="_richTextNode">Tissues that are not copies of each other</span></h2><div  class = 'S1'><span class="_richTextNode">Give a cell array of one model per tissue, in the same order, and each keeps its own network.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% body = buildMultiTissueModel({liverGEM, muscleGEM}, {'liver','muscle'}, ...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%     struct('name',{'Bl'},'units',{{'liver','muscle'}}), {'Bl'}, ...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%     'anchorReactions', {'biomass_maintenance','ATPM'});</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Anything other than one model per tissue, or one model for all of them, is refused rather than recycled:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">try</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    buildMultiTissueModel({recon, recon}, {</span><span style="color: rgb(167, 9, 245);">'liver'</span><span >,</span><span style="color: rgb(167, 9, 245);">'muscle'</span><span >,</span><span style="color: rgb(167, 9, 245);">'gut'</span><span >}, pools, {</span><span style="color: rgb(167, 9, 245);">'Bl'</span><span >});</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">catch </span><span >err</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'refused, as it should be: %s\n'</span><span >, err.message);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div></div><h2  class = 'S2'><span class="_richTextNode">Why pooled rather than shared</span></h2><div  class = 'S1'><span class="_richTextNode">A community usually wants mode 'shared', which drops the transports and shares the external compartment outright. Here it is the wrong choice, and the comparison shows what it costs and what it buys:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >compact = buildMultiTissueModel(recon, {</span><span style="color: rgb(167, 9, 245);">'liver'</span><span >,</span><span style="color: rgb(167, 9, 245);">'muscle'</span><span >,</span><span style="color: rgb(167, 9, 245);">'gut'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    struct(</span><span style="color: rgb(167, 9, 245);">'name'</span><span >,{</span><span style="color: rgb(167, 9, 245);">'Bl'</span><span >},</span><span style="color: rgb(167, 9, 245);">'units'</span><span >,{{</span><span style="color: rgb(167, 9, 245);">'liver'</span><span >,</span><span style="color: rgb(167, 9, 245);">'muscle'</span><span >,</span><span style="color: rgb(167, 9, 245);">'gut'</span><span >}}), {</span><span style="color: rgb(167, 9, 245);">'Bl'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'mode'</span><span >, </span><span style="color: rgb(167, 9, 245);">'shared'</span><span >, </span><span style="color: rgb(167, 9, 245);">'anchorReactions'</span><span >, </span><span style="color: rgb(167, 9, 245);">'biomass_maintenance'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'couple'</span><span >, false, </span><span style="color: rgb(167, 9, 245);">'check'</span><span >, false);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'pooled %d reactions, shared %d\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    numel(body.model.rxns), numel(compact.model.rxns));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">35015 against 28699 — the 6316 transports. In exchange, 'shared' allows only one pool, so there is no lumen the gut alone can reach, and it has no transports, so there is nothing for a per-tissue uptake rate to attach to. Both of those are the things a body needs, which is why 'pooled' is the default and why the tissues pay for it.</span></div><h2  class = 'S2'><span class="_richTextNode">What the anchor is, and what coupling costs</span></h2><div  class = 'S1'><span class="_richTextNode">A tissue is rarely growing, so its anchor is usually a maintenance or demand reaction rather than biomass. It has to be said rather than guessed: coupling every reaction of a tissue to the wrong one would throttle or free the whole tissue with no error anywhere. Above it is Recon3D's own biomass_maintenance, passed as a single name because every tissue is a copy of the same reconstruction.</span></div><div  class = 'S1'><span class="_richTextNode">Coupling was switched off in the examples above because at this scale it is the expensive part — 58.6 s against 2.0 s for the build itself, spent in the COBRA toolbox's own coupleRxnList2Rxn adding two constraint rows per reaction. Switch it on when you are going to simulate:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% body = buildMultiTissueModel(recon, tissues, pools, {'Bl'}, ...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%     'anchorReactions', 'biomass_maintenance', 'poolMedium', diet);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Without it a tissue whose anchor carries no flux can still run its metabolism and feed the others, which in a body means a dead organ supplying a live one.</span></div><h2  class = 'S2'><span class="_richTextNode">Extracting context-specific tissues</span></h2><div  class = 'S1'><span class="_richTextNode">The joined model is an ordinary COBRA model, so the extraction works on it as it would on any other. The core set is where each tissue's identity comes from: name the reactions that tissue's data supports, tagged by it.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% core = [strcat(liverCore,'__liver'); strcat(muscleCore,'__muscle')];</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% tissueSpecific = spectraME(body.model, core, 1e-4, 'stoichiometry', weights);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Every tissue starting as a copy of one reconstruction is what makes this work: what distinguishes liver from muscle in the result is which reactions were required of each, not which network they started from.</span></div><h2  class = 'S2'><span class="_richTextNode">See also</span></h2><div  class = 'S1'><span class="_richTextNode">Tutorial_community, for pools, coupling, anchors and the cross-feeding this is built on. Tutorial_extraction, for the core sets and weights the last section passes over. The functions used here are buildMultiTissueModel and buildCommunityModel.</span></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Multi-tissue models
+% A multi-tissue model is one network per tissue, joined by the places they 
+% exchange metabolites: blood, an interstitial space, the gut lumen.
+% 
+% The networks may be copies of a single reconstruction, which is what you want 
+% when extracting multi-tissue context-specific models, or genuinely different 
+% models, one per tissue. Either way each tissue keeps its own copy of every reaction 
+% and every metabolite it has, so the same reaction running in liver and in muscle 
+% is two separate reactions carrying separate flux. What connects them is a **pool**, 
+% a compartment several tissues can reach, and what distinguishes them is their 
+% networks, their bounds, which pools they reach, and which reactions they are 
+% required to keep.
+% 
+% Nothing in the construction distinguishes a tissue from an organism, so this 
+% is Tutorial_community with the replication done for you. Read that one first 
+% for pools, coupling and anchors; this page is about the part that is specific 
+% to a body.
+%% How things are named
+% Everything a tissue owns is tagged with that tissue's name. A reaction PGI 
+% becomes PGI__liver in one tissue and PGI__muscle in another; the external metabolite 
+% glc_D[e] becomes glc_D[e__liver] and glc_D[e__muscle]. The tag goes on the compartment 
+% rather than after it, so that each tissue keeps a private external compartment 
+% and COBRA's own parsing of a trailing [c] still works. The tag is a __ suffix, 
+% which is why tissue names may not contain __ themselves.
+% 
+% A pool metabolite is **not** tagged, because it belongs to no tissue: blood 
+% glucose is glc_D[Bl], one metabolite that every tissue on the blood can reach. 
+% Between a tissue's own external metabolite and the pool's sits a **transport**, 
+% one per tissue per metabolite per pool, named TR_<metabolite>_<pool>__<tissue>. 
+% The pool reaches the outside world through an **exchange**, EX_<metabolite>[<pool>].
+% 
+% That arrangement — a private external compartment per tissue, and a transport 
+% into each pool it reaches — is what lets one tissue belong to two pools at once, 
+% and it is what gives you somewhere to attach a measured uptake rate.
+%% Setting up
+
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+%% A three-tissue body from Recon3D
+% Liver, muscle and gut. All three sit on the blood; the gut also faces a lumen 
+% that nothing else reaches.
+
+recon = readCbModel('Recon3DModel_301.mat');
+fprintf('Recon3D: %d reactions, %d metabolites, %d external\n', ...
+    numel(recon.rxns), numel(recon.mets), sum(endsWith(recon.mets,'[e]')));
+
+pools = struct('name',  {'Bl', 'Lu'}, ...
+               'units', {{'liver','muscle','gut'}, {'gut'}});
+
+body = buildMultiTissueModel(recon, {'liver','muscle','gut'}, pools, {'Bl'}, ...
+    'anchorReactions', 'biomass_maintenance', 'couple', false, 'check', false);
+
+fprintf('%d reactions, %d metabolites, %d community exchanges\n', ...
+    numel(body.model.rxns), numel(body.model.mets), ...
+    numel(body.communityExchanges));
+%% 
+% Two seconds, and 35015 reactions over 20663 metabolites from a 10600-reaction 
+% reconstruction. Where the extra reactions went:
+
+for k = 1:numel(body.units)
+    fprintf('  %-7s %6d reactions, %4d transports (Bl %d, Lu %d)\n', ...
+        body.units(k).name, numel(body.units(k).rxns), ...
+        sum(startsWith(body.units(k).rxns,'TR_')), ...
+        sum(contains(body.units(k).rxns,'_Bl__')), ...
+        sum(contains(body.units(k).rxns,'_Lu__')));
+end
+%     liver    10619 reactions, 1579 transports (Bl 1579, Lu 0)
+%     muscle   10619 reactions, 1579 transports (Bl 1579, Lu 0)
+%     gut      12198 reactions, 3158 transports (Bl 1579, Lu 1579)
+%% 
+% Each tissue carries Recon3D's 10600 reactions less its 1560 own exchanges, 
+% plus a transport for each of the 1579 external metabolites into each pool it 
+% belongs to. The gut has twice as many as the others because it is in two pools, 
+% and that is the whole point of the arrangement: it can take up from the lumen 
+% and release into the blood, with a separate bound on each.
+%% The interface pool stays closed
+% Only the blood was named in environment, so only the blood carries exchanges.
+
+fprintf('EX_glc_D[Bl]: %d   EX_glc_D[Lu]: %d\n', ...
+    ismember('EX_glc_D[Bl]', body.model.rxns), ...
+    ismember('EX_glc_D[Lu]', body.model.rxns));
+%% 
+% 1 and 0. This matters more than it looks. Had the lumen been given exchanges 
+% too, the gut could take glucose straight out of the environment through the 
+% lumen and secrete it into the blood, and the liver and muscle would be fed by 
+% a route that does not exist in a body. A pool that merely links tissues has 
+% to stay closed, which is why environment has no sensible default when there 
+% is more than one pool and buildCommunityModel refuses to guess one.
+% 
+% All 1579 community exchanges are export-only until poolMedium says otherwise, 
+% so the body as built above cannot take up anything at all. That is deliberate 
+% — see Tutorial_community — and it means the diet is something you state:
+
+% diet = struct('met', {'glc_D[e]','o2[e]', ...}, ...
+%               'lb',  {-10, -1000, ...}, 'ub', {1000, 1000, ...});
+% body = buildMultiTissueModel(..., 'poolMedium', diet);
+%% 
+% poolMedium is keyed by metabolite as Recon3D spells it, and a name matching 
+% no metabolite is reported rather than ignored.
+%% Bounding one tissue's uptake
+% This is what the transports are for. A measured rate is about one tissue taking 
+% up one metabolite from one place, which is exactly one transport reaction, so 
+% name it:
+
+% the gut's glucose uptake from the lumen, and nothing else's
+% 'linkBounds', struct('rxn', {'TR_glc_D_Lu__gut'}, 'lb', {-5}, 'ub', {1000})
+%% 
+% Keying by met instead sets the same bound on every tissue's transport of that 
+% metabolite, which is the broader statement and rarely what a measurement says. 
+% A transport named in linkBounds that does not exist is reported, because a misspelt 
+% one would otherwise leave its bounds silently wide open.
+%% Tissues that are not copies of each other
+% Give a cell array of one model per tissue, in the same order, and each keeps 
+% its own network.
+
+% body = buildMultiTissueModel({liverGEM, muscleGEM}, {'liver','muscle'}, ...
+%     struct('name',{'Bl'},'units',{{'liver','muscle'}}), {'Bl'}, ...
+%     'anchorReactions', {'biomass_maintenance','ATPM'});
+%% 
+% Anything other than one model per tissue, or one model for all of them, is 
+% refused rather than recycled:
+
+try
+    buildMultiTissueModel({recon, recon}, {'liver','muscle','gut'}, pools, {'Bl'});
+catch err
+    fprintf('refused, as it should be: %s\n', err.message);
+end
+%% Why pooled rather than shared
+% A community usually wants mode 'shared', which drops the transports and shares 
+% the external compartment outright. Here it is the wrong choice, and the comparison 
+% shows what it costs and what it buys:
+
+compact = buildMultiTissueModel(recon, {'liver','muscle','gut'}, ...
+    struct('name',{'Bl'},'units',{{'liver','muscle','gut'}}), {'Bl'}, ...
+    'mode', 'shared', 'anchorReactions', 'biomass_maintenance', ...
+    'couple', false, 'check', false);
+fprintf('pooled %d reactions, shared %d\n', ...
+    numel(body.model.rxns), numel(compact.model.rxns));
+%% 
+% 35015 against 28699 — the 6316 transports. In exchange, 'shared' allows only 
+% one pool, so there is no lumen the gut alone can reach, and it has no transports, 
+% so there is nothing for a per-tissue uptake rate to attach to. Both of those 
+% are the things a body needs, which is why 'pooled' is the default and why the 
+% tissues pay for it.
+%% What the anchor is, and what coupling costs
+% A tissue is rarely growing, so its anchor is usually a maintenance or demand 
+% reaction rather than biomass. It has to be said rather than guessed: coupling 
+% every reaction of a tissue to the wrong one would throttle or free the whole 
+% tissue with no error anywhere. Above it is Recon3D's own biomass_maintenance, 
+% passed as a single name because every tissue is a copy of the same reconstruction.
+% 
+% Coupling was switched off in the examples above because at this scale it is 
+% the expensive part — 58.6 s against 2.0 s for the build itself, spent in the 
+% COBRA toolbox's own coupleRxnList2Rxn adding two constraint rows per reaction. 
+% Switch it on when you are going to simulate:
+
+% body = buildMultiTissueModel(recon, tissues, pools, {'Bl'}, ...
+%     'anchorReactions', 'biomass_maintenance', 'poolMedium', diet);
+%% 
+% Without it a tissue whose anchor carries no flux can still run its metabolism 
+% and feed the others, which in a body means a dead organ supplying a live one.
+%% Extracting context-specific tissues
+% The joined model is an ordinary COBRA model, so the extraction works on it 
+% as it would on any other. The core set is where each tissue's identity comes 
+% from: name the reactions that tissue's data supports, tagged by it.
+
+% core = [strcat(liverCore,'__liver'); strcat(muscleCore,'__muscle')];
+% tissueSpecific = spectraME(body.model, core, 1e-4, 'stoichiometry', weights);
+%% 
+% Every tissue starting as a copy of one reconstruction is what makes this work: 
+% what distinguishes liver from muscle in the result is which reactions were required 
+% of each, not which network they started from.
+%% See also
+% Tutorial_community, for pools, coupling, anchors and the cross-feeding this 
+% is built on. Tutorial_extraction, for the core sets and weights the last section 
+% passes over. The functions used here are buildMultiTissueModel and buildCommunityModel.
+##### SOURCE END #####
+-->
+</div></body></html>

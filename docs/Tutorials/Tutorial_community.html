@@ -1,0 +1,280 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,chrome=1"><meta name="generator" content="MATLAB 2026a"><title>Microbial community models</title><style type="text/css">.rtcContent { padding: 30px; } .S0 { margin: 3px 10px 5px 4px; padding: 0px; line-height: 28.8px; min-height: 0px; white-space: pre; color: rgb(192, 76, 11); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 24px; font-weight: 400; text-align: left;  }
+._richTextNode {white-space: break-spaces;}
+.S1 { margin: 2px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }
+.S2 { margin: 20px 10px 5px 4px; padding: 0px; line-height: 25px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 20px; font-weight: 700; text-align: left;  }
+.CodeBlock { background-color: #F5F5F5; margin: 10px 0 10px 0; }
+.S3 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 1px solid rgb(217, 217, 217); border-bottom: 0px none rgb(33, 33, 33); border-radius: 4px 4px 0px 0px; padding: 6px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S4 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 0px none rgb(33, 33, 33); border-radius: 0px; padding: 0px 45px 0px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S5 { border-left: 1px solid rgb(217, 217, 217); border-right: 1px solid rgb(217, 217, 217); border-top: 0px none rgb(33, 33, 33); border-bottom: 1px solid rgb(217, 217, 217); border-radius: 0px 0px 4px 4px; padding: 0px 45px 4px 13px; line-height: 18.004px; min-height: 0px; white-space: nowrap; color: rgb(33, 33, 33); font-family: Menlo, Monaco, Consolas, "Courier New", monospace, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 14px;  }
+.S6 { margin: 10px 10px 9px 4px; padding: 0px; line-height: 21px; min-height: 0px; white-space: pre; color: rgb(33, 33, 33); font-family: Helvetica, Arial, sans-serif, Helvetica, Arial, sans-serif; font-style: normal; font-size: 14px; font-weight: 400; text-align: left;  }</style></head><body><div class = rtcContent><h1  class = 'S0'><span class="_richTextNode">Microbial community models</span></h1><div  class = 'S1'><span class="_richTextNode">A community is several organisms sharing an environment.</span></div><div  class = 'S1'><span class="_richTextNode">A community model puts each member's network side by side in one model, tags each one so its reactions cannot be confused with another's, and gives them somewhere to pass metabolites to each other. One organism's secretion arrives there and becomes available to the rest, which is what makes cross-feeding possible and what makes the community more than the sum of its members.</span></div><h2  class = 'S2'><span class="_richTextNode">Units, pools and exchanges</span></h2><div  class = 'S1'><span class="_richTextNode">Three words carry the whole design.</span></div><div  class = 'S1'><span class="_richTextNode">A **unit** is one member's whole network. Everything belonging to it gets its name as a tag, so PFK in unit A becomes PFK__A. Units never share a reaction, even where two of them carry the same one: E. coli's PFK and Bacteroides' PFK are separate reactions with separate fluxes, because the two organisms run them independently.</span></div><div  class = 'S1'><span class="_richTextNode">A **pool** is a compartment that several units can reach. It is the only way one unit's output becomes another's input. A community usually has a single pool, the medium everyone sits in, but it may have more, where some members are in contact with each other and not with the rest.</span></div><div  class = 'S1'><span class="_richTextNode">An **exchange** connects a pool to the environment outside the whole system. Only the pools you nominate get them. This is deliberate and it matters: a pool that exists purely to link two units must stay closed, or those two could dump metabolites straight out of the system and bypass everything else.</span></div><h2  class = 'S2'><span class="_richTextNode">Setting up</span></h2><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >initCobraToolbox(false)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >changeCobraSolver(</span><span style="color: rgb(167, 9, 245);">'gurobi'</span><span >,</span><span style="color: rgb(167, 9, 245);">'all'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% Assumes this live script is run from docs/Tutorials; edit if not.</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >spectraRoot = fileparts(fileparts(pwd));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >addpath(genpath(fullfile(spectraRoot,</span><span style="color: rgb(167, 9, 245);">'src'</span><span >)));</span></span></div></div></div><h2  class = 'S2'><span class="_richTextNode">A toy community, end to end</span></h2><div  class = 'S1'><span class="_richTextNode">Two organisms. The feeder ferments glucose to acetate; the eater oxidises acetate and cannot touch glucose at all.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >feeder = createModel();</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >feeder = addReaction(feeder,</span><span style="color: rgb(167, 9, 245);">'UP_glc'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'glc[e] -&gt; g6p[c]'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >feeder = addReaction(feeder,</span><span style="color: rgb(167, 9, 245);">'FERM'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'g6p[c] -&gt; ac[e] + atp[c]'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >feeder = addReaction(feeder,</span><span style="color: rgb(167, 9, 245);">'GROW'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'atp[c] -&gt; '</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >feeder = addReaction(feeder,</span><span style="color: rgb(167, 9, 245);">'EX_glc(e)'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'glc[e] &lt;=&gt; '</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,-1000,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >feeder = addReaction(feeder,</span><span style="color: rgb(167, 9, 245);">'EX_ac(e)'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'ac[e] &lt;=&gt; '</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,-1000,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >feeder = changeObjective(feeder,</span><span style="color: rgb(167, 9, 245);">'GROW'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >eater = createModel();</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >eater = addReaction(eater,</span><span style="color: rgb(167, 9, 245);">'UP_ac'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'ac[e] -&gt; accoa[c]'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >eater = addReaction(eater,</span><span style="color: rgb(167, 9, 245);">'TCA'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'accoa[c] -&gt; co2[e] + 3 atp[c]'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% Overflow: acetate burnt off without conserving any of it as ATP. Nothing</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% in the stoichiometry ties this to growth, which is what makes it the</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% reaction to watch when coupling is discussed below.</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >eater = addReaction(eater,</span><span style="color: rgb(167, 9, 245);">'OVERFLOW'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'accoa[c] -&gt; co2[e]'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >eater = addReaction(eater,</span><span style="color: rgb(167, 9, 245);">'GROW'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'atp[c] -&gt; '</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >eater = addReaction(eater,</span><span style="color: rgb(167, 9, 245);">'EX_ac(e)'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'ac[e] &lt;=&gt; '</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,-1000,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >eater = addReaction(eater,</span><span style="color: rgb(167, 9, 245);">'EX_co2(e)'</span><span >,</span><span style="color: rgb(167, 9, 245);">'reactionFormula'</span><span >,</span><span style="color: rgb(167, 9, 245);">'co2[e] &lt;=&gt; '</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'lowerBound'</span><span >,-1000,</span><span style="color: rgb(167, 9, 245);">'upperBound'</span><span >,1000,</span><span style="color: rgb(167, 9, 245);">'printLevel'</span><span >,0);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >eater = changeObjective(eater,</span><span style="color: rgb(167, 9, 245);">'GROW'</span><span >);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Only glucose is on offer. A pool exchange is export-only until the medium says otherwise, which is deliberate: a joined model that silently supplies everything is the more dangerous default.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >glucoseOnly = struct(</span><span style="color: rgb(167, 9, 245);">'met'</span><span >,{</span><span style="color: rgb(167, 9, 245);">'glc[e]'</span><span >},</span><span style="color: rgb(167, 9, 245);">'lb'</span><span >,{-10},</span><span style="color: rgb(167, 9, 245);">'ub'</span><span >,{1000});</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >community = buildCommunityModel({feeder, eater}, {</span><span style="color: rgb(167, 9, 245);">'F'</span><span >,</span><span style="color: rgb(167, 9, 245);">'E'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'poolMedium'</span><span >, glucoseOnly);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'%d reactions, %d metabolites\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    numel(community.model.rxns), numel(community.model.mets));</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >disp(community.model.rxns')</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Fourteen reactions and eleven metabolites. Each unit's own exchanges are gone, replaced by transports into the pool — TR_glc_u__F, TR_ac_u__F, TR_ac_u__E, TR_co2_u__E — and the pool carries the three exchanges that reach the environment.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >sol = optimizeCbModel(community.model);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'total %.4g | feeder %.4g | eater %.4g\n'</span><span >, sol.f, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    sol.v(findRxnIDs(community.model,</span><span style="color: rgb(167, 9, 245);">'GROW__F'</span><span >)), </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    sol.v(findRxnIDs(community.model,</span><span style="color: rgb(167, 9, 245);">'GROW__E'</span><span >)));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Total 40, of which the feeder takes 10 and the eater 30. The eater never sees glucose; every unit of its growth came through the pool.</span></div><h2  class = 'S2'><span class="_richTextNode">Showing that the cross-feeding is real</span></h2><div  class = 'S1'><span class="_richTextNode">Maximise the eater on its own and it still reaches 30. Then shut the feeder's fermentation off and it reaches nothing at all.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >onlyEater = changeObjective(community.model,</span><span style="color: rgb(167, 9, 245);">'GROW__E'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >alone = optimizeCbModel(onlyEater);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >starved = changeRxnBounds(onlyEater,</span><span style="color: rgb(167, 9, 245);">'FERM__F'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'b'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >cut = optimizeCbModel(starved);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'eater alone:       %.4g\n'</span><span >, alone.f);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'feeder shut down:  %.4g\n'</span><span >, cut.f);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">30 and 0. Acetate reaches the eater only because the feeder puts it in the pool.</span></div><h2  class = 'S2'><span class="_richTextNode">How the pool is built</span></h2><div  class = 'S1'><span class="_richTextNode">mode 'shared' is what a community usually wants: the units share the external compartment itself, one row of the stoichiometric matrix per exchangeable metabolite for the whole community.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >shared = buildCommunityModel({feeder, eater}, {</span><span style="color: rgb(167, 9, 245);">'F'</span><span >,</span><span style="color: rgb(167, 9, 245);">'E'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'mode'</span><span >, </span><span style="color: rgb(167, 9, 245);">'shared'</span><span >, </span><span style="color: rgb(167, 9, 245);">'poolMedium'</span><span >, glucoseOnly);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'pooled %d reactions, shared %d\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >    numel(community.model.rxns), numel(shared.model.rxns));</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">The default, mode 'pooled', gives each unit a private external compartment and a transport into the pool. That buys two things a community rarely needs and always pays for: **several pools**, so a member can meet one group in one place and another group somewhere else, and **per-unit bounds** on what crosses into each pool, through linkBounds.</span></div><div  class = 'S1'><span class="_richTextNode">It costs one transport per unit per exchangeable metabolite. Ten copies of the E. coli core model, which has twenty exchanges:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%                        Reactions   Metabolites</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   shared, 10 copies          770           540</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   pooled, 10 copies          970           740</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Two hundred extra reactions here; a hundred organisms across a thousand metabolites is a hundred thousand, which is the difference between a model you can build and one you cannot. Tutorial_multiTissue is where that structure earns its keep: tissues genuinely do not all meet in the same place, and the uptake rates you measure are per tissue.</span></div><h2  class = 'S2'><span class="_richTextNode">Which metabolites are exchangeable</span></h2><div  class = 'S1'><span class="_richTextNode">Reconstructions do not agree on how to write an extracellular metabolite, and two questions follow with different answers.</span></div><div  class = 'S1'><span class="_richTextNode">**Which compartment is the outside one?** This decides which metabolites can reach the pool at all. It is worked out per unit, not once for the community, because the models need not agree: one may call it e and another extracellular. A compartment with a recognised name wins; failing that, the one carrying the most single-metabolite reactions; failing that, 'e', with a line saying so. Say it yourself when you have any doubt:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% one name for every unit, or one per unit in order</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% buildCommunityModel(models, names, 'externalCompartment', 'ext');</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% buildCommunityModel(models, names, 'externalCompartment', {'e','ext'});</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">**Which metabolites are the same compound?** Two units meet in the pool only if their metabolites resolve to the same name. By default the compartment is stripped, which resolves glc-D[e] and glc-D_e to the same glc-D, so those two spellings share one pool row in either mode.</span></div><div  class = 'S1'><span class="_richTextNode">What stripping cannot do is reconcile identifiers from *different namespaces*. BiGG writes glucose glc__D[e] and AGORA writes it glc_D[e]: the same molecule under two schemes, and no amount of suffix-stripping will tell you so. If every identifier differed, nothing would cross-feed and you would be told:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   buildCommunityModel: pool 'u' is shared by 2 units but not one metabolite</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   in it is reached by more than one of them, so nothing can cross-feed. The</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   usual cause is identifiers from different namespaces; pass metaboliteKey</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   to say how they correspond.</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">In practice the mismatch is *partial*, which is worse, because there is nothing for that check to catch: the metabolites both schemes spell alike meet in the pool, the community looks like it is cross-feeding, and glucose is not among them. metaboliteKey is the way out. Given a metabolite identifier, return the name of the thing it is:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% Drop the compartment, then collapse BiGG's doubled underscore.</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >sameCompound = @(met) strrep(regexprep(met,</span><span style="color: rgb(167, 9, 245);">'(\[\w+\]|_\w)$'</span><span >,</span><span style="color: rgb(167, 9, 245);">''</span><span >), </span><span style="color: rgb(167, 9, 245);">'__'</span><span >, </span><span style="color: rgb(167, 9, 245);">'_'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% buildCommunityModel(models, names, 'metaboliteKey', sameCompound);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">metaboliteKey *replaces* the default rule rather than adding to it, so it has to handle every metabolite, not just the ones you are fixing. A key that rewrites only the identifiers you noticed leaves every other one with its compartment attached, so ac[e] and ac_e stop resolving together. Strip the compartment in your key, or you will lose the metabolites that were already fine.</span></div><h2  class = 'S2'><span class="_richTextNode">Where the bounds go</span></h2><div  class = 'S1'><span class="_richTextNode">poolMedium is keyed by metabolite as your models spell it, resolved by looking each name up among the metabolites that exist rather than by stripping suffixes. A name matching nothing is reported rather than silently ignored, which is how you find out a medium file and a model disagree.</span></div><div  class = 'S1'><span class="_richTextNode">linkBounds bounds what crosses between one unit and one pool, and can be keyed either way. By met it applies to every unit's transport of that metabolite; by rxn it names one transport, TR_&lt;metabolite&gt;_&lt;pool&gt;__&lt;unit&gt;, which is what a measured per-unit rate is actually about.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% every unit's acetate transport</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% 'linkBounds', struct('met',{'ac[e]'},'lb',{-5},'ub',{1000})</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% just the eater's</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% 'linkBounds', struct('rxn',{'TR_ac_u__E'},'lb',{-5},'ub',{1000})</span></span></div></div></div><h2  class = 'S2'><span class="_richTextNode">Coupling, and what a unit is gated on</span></h2><div  class = 'S1'><span class="_richTextNode">Without coupling, a unit that is not growing can still run its metabolism and feed the others — a dead organism donating metabolites, which is not a community so much as a bookkeeping error. Coupling ties every reaction of a unit to its own anchor: a reaction may carry couplingFactor times the anchor's flux, plus couplingThreshold.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span >loose = buildCommunityModel({feeder, eater}, {</span><span style="color: rgb(167, 9, 245);">'F'</span><span >,</span><span style="color: rgb(167, 9, 245);">'E'</span><span >}, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    </span><span style="color: rgb(167, 9, 245);">'poolMedium'</span><span >, glucoseOnly, </span><span style="color: rgb(167, 9, 245);">'couple'</span><span >, false, </span><span style="color: rgb(167, 9, 245);">'check'</span><span >, false);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >held = changeRxnBounds(community.model,</span><span style="color: rgb(167, 9, 245);">'GROW__E'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'b'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >held = optimizeCbModel(changeObjective(held,</span><span style="color: rgb(167, 9, 245);">'OVERFLOW__E'</span><span >));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >free = changeRxnBounds(loose.model,</span><span style="color: rgb(167, 9, 245);">'GROW__E'</span><span >,0,</span><span style="color: rgb(167, 9, 245);">'b'</span><span >);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >free = optimizeCbModel(changeObjective(free,</span><span style="color: rgb(167, 9, 245);">'OVERFLOW__E'</span><span >));</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'>&nbsp;</div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'coupled, eater dead:    OVERFLOW runs at %.4g\n'</span><span >, held.f);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span >fprintf(</span><span style="color: rgb(167, 9, 245);">'uncoupled, eater dead:  OVERFLOW runs at %.4g\n'</span><span >, free.f);</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">0.01 and 10. Coupled, the eater's only remaining slack is couplingThreshold; uncoupled, a unit that cannot grow at all still strips the pool of every acetate the feeder puts into it.</span></div><div  class = 'S1'><span class="_richTextNode">The anchor is the reaction the coupling gates on. It is taken from the model's objective, or from a reaction named biomass*, and refused rather than guessed when neither settles it — coupling a unit to the wrong reaction would throttle or free the whole unit with no error anywhere. Pass biomassReactions to say it outright.</span></div><div  class = 'S1'><span class="_richTextNode">The default couplingFactor of 1000 is the published value for a biomass anchor running at around 1. An anchor that runs at a different scale needs a different factor, and that is what the check reports:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   buildCommunityModel: at its best E runs GROW__E at 0.0004, so coupling</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   caps its other reactions at 0.41. Raise couplingFactor or set couple to</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%   false.</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Each unit's measured capacity is in the units field, alongside the anchor and how it was decided:</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">for </span><span >k = 1:numel(community.units)</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >    fprintf(</span><span style="color: rgb(167, 9, 245);">'%-4s anchor %-10s (%s), capacity %.4g\n'</span><span >, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        community.units(k).name, community.units(k).anchor, </span><span style="color: rgb(14, 0, 255);">...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span >        community.units(k).anchorSource, community.units(k).anchorCapacity);</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(14, 0, 255);">end</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">The capacity is measured on the community, not on the unit alone: a unit that cannot grow in isolation may grow perfectly well on what the others secrete, and reporting it as dead would be a false alarm. One solve maximises every anchor at once, which lands on an arbitrary point of the optimal face, so a unit can read zero merely for having lost a tie to another on the same nutrient. Any such reading is taken again on its own.</span></div><h2  class = 'S2'><span class="_richTextNode">Drafts and databases</span></h2><div  class = 'S1'><span class="_richTextNode">Pass databases and each unit holds a whole universal model, bounded by its own reconstruction where the two agree. The reactions only the database has are recorded as candidates to gap-fill in, which is what joint community gap-filling then works on.</span></div><div class="CodeBlock"><div class="inlineWrapper"><div  class = 'S3'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% filled = buildCommunityModel(drafts, names, 'databases', universal, ...</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">%                              'poolMedium', medium);</span></span></div></div><div class="inlineWrapper"><div  class = 'S4'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% filled.databaseReactions{1}   % what unit 1 may draw on</span></span></div></div><div class="inlineWrapper"><div  class = 'S5'><span style="white-space: pre"><span style="color: rgb(0, 128, 19);">% filled.draftReactions{1}      % what it already had</span></span></div></div></div><div  class = 'S6'><span class="_richTextNode">Gap-filling the units together rather than one at a time lets a gap in one be closed by another's secretion instead of by a new reaction, which is why the community result is the smaller one.</span></div><h2  class = 'S2'><span class="_richTextNode">See also</span></h2><div  class = 'S1'><span class="_richTextNode">Tutorial_multiTissue, for the same construction applied to the tissues of a body. The functions used here are buildCommunityModel and buildMultiTissueModel.</span></div>
+<br>
+<!-- 
+##### SOURCE BEGIN #####
+%% Microbial community models
+% A community is several organisms sharing an environment.
+% 
+% A community model puts each member's network side by side in one model, tags 
+% each one so its reactions cannot be confused with another's, and gives them 
+% somewhere to pass metabolites to each other. One organism's secretion arrives 
+% there and becomes available to the rest, which is what makes cross-feeding possible 
+% and what makes the community more than the sum of its members.
+%% Units, pools and exchanges
+% Three words carry the whole design.
+% 
+% A **unit** is one member's whole network. Everything belonging to it gets 
+% its name as a tag, so PFK in unit A becomes PFK__A. Units never share a reaction, 
+% even where two of them carry the same one: E. coli's PFK and Bacteroides' PFK 
+% are separate reactions with separate fluxes, because the two organisms run them 
+% independently.
+% 
+% A **pool** is a compartment that several units can reach. It is the only way 
+% one unit's output becomes another's input. A community usually has a single 
+% pool, the medium everyone sits in, but it may have more, where some members 
+% are in contact with each other and not with the rest.
+% 
+% An **exchange** connects a pool to the environment outside the whole system. 
+% Only the pools you nominate get them. This is deliberate and it matters: a pool 
+% that exists purely to link two units must stay closed, or those two could dump 
+% metabolites straight out of the system and bypass everything else.
+%% Setting up
+
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+%% A toy community, end to end
+% Two organisms. The feeder ferments glucose to acetate; the eater oxidises 
+% acetate and cannot touch glucose at all.
+
+feeder = createModel();
+feeder = addReaction(feeder,'UP_glc','reactionFormula','glc[e] -> g6p[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'FERM','reactionFormula','g6p[c] -> ac[e] + atp[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'GROW','reactionFormula','atp[c] -> ', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'EX_glc(e)','reactionFormula','glc[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+feeder = addReaction(feeder,'EX_ac(e)','reactionFormula','ac[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+feeder = changeObjective(feeder,'GROW');
+
+eater = createModel();
+eater = addReaction(eater,'UP_ac','reactionFormula','ac[e] -> accoa[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'TCA','reactionFormula','accoa[c] -> co2[e] + 3 atp[c]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+% Overflow: acetate burnt off without conserving any of it as ATP. Nothing
+% in the stoichiometry ties this to growth, which is what makes it the
+% reaction to watch when coupling is discussed below.
+eater = addReaction(eater,'OVERFLOW','reactionFormula','accoa[c] -> co2[e]', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'GROW','reactionFormula','atp[c] -> ', ...
+    'lowerBound',0,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'EX_ac(e)','reactionFormula','ac[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+eater = addReaction(eater,'EX_co2(e)','reactionFormula','co2[e] <=> ', ...
+    'lowerBound',-1000,'upperBound',1000,'printLevel',0);
+eater = changeObjective(eater,'GROW');
+%% 
+% Only glucose is on offer. A pool exchange is export-only until the medium 
+% says otherwise, which is deliberate: a joined model that silently supplies everything 
+% is the more dangerous default.
+
+glucoseOnly = struct('met',{'glc[e]'},'lb',{-10},'ub',{1000});
+community = buildCommunityModel({feeder, eater}, {'F','E'}, ...
+    'poolMedium', glucoseOnly);
+
+fprintf('%d reactions, %d metabolites\n', ...
+    numel(community.model.rxns), numel(community.model.mets));
+disp(community.model.rxns')
+%% 
+% Fourteen reactions and eleven metabolites. Each unit's own exchanges are gone, 
+% replaced by transports into the pool — TR_glc_u__F, TR_ac_u__F, TR_ac_u__E, 
+% TR_co2_u__E — and the pool carries the three exchanges that reach the environment.
+
+sol = optimizeCbModel(community.model);
+fprintf('total %.4g | feeder %.4g | eater %.4g\n', sol.f, ...
+    sol.v(findRxnIDs(community.model,'GROW__F')), ...
+    sol.v(findRxnIDs(community.model,'GROW__E')));
+%% 
+% Total 40, of which the feeder takes 10 and the eater 30. The eater never sees 
+% glucose; every unit of its growth came through the pool.
+%% Showing that the cross-feeding is real
+% Maximise the eater on its own and it still reaches 30. Then shut the feeder's 
+% fermentation off and it reaches nothing at all.
+
+onlyEater = changeObjective(community.model,'GROW__E');
+alone = optimizeCbModel(onlyEater);
+
+starved = changeRxnBounds(onlyEater,'FERM__F',0,'b');
+cut = optimizeCbModel(starved);
+
+fprintf('eater alone:       %.4g\n', alone.f);
+fprintf('feeder shut down:  %.4g\n', cut.f);
+%% 
+% 30 and 0. Acetate reaches the eater only because the feeder puts it in the 
+% pool.
+%% How the pool is built
+% mode 'shared' is what a community usually wants: the units share the external 
+% compartment itself, one row of the stoichiometric matrix per exchangeable metabolite 
+% for the whole community.
+
+shared = buildCommunityModel({feeder, eater}, {'F','E'}, ...
+    'mode', 'shared', 'poolMedium', glucoseOnly);
+fprintf('pooled %d reactions, shared %d\n', ...
+    numel(community.model.rxns), numel(shared.model.rxns));
+%% 
+% The default, mode 'pooled', gives each unit a private external compartment 
+% and a transport into the pool. That buys two things a community rarely needs 
+% and always pays for: **several pools**, so a member can meet one group in one 
+% place and another group somewhere else, and **per-unit bounds** on what crosses 
+% into each pool, through linkBounds.
+% 
+% It costs one transport per unit per exchangeable metabolite. Ten copies of 
+% the E. coli core model, which has twenty exchanges:
+
+%                        Reactions   Metabolites
+%   shared, 10 copies          770           540
+%   pooled, 10 copies          970           740
+%% 
+% Two hundred extra reactions here; a hundred organisms across a thousand metabolites 
+% is a hundred thousand, which is the difference between a model you can build 
+% and one you cannot. Tutorial_multiTissue is where that structure earns its keep: 
+% tissues genuinely do not all meet in the same place, and the uptake rates you 
+% measure are per tissue.
+%% Which metabolites are exchangeable
+% Reconstructions do not agree on how to write an extracellular metabolite, 
+% and two questions follow with different answers.
+% 
+% **Which compartment is the outside one?** This decides which metabolites can 
+% reach the pool at all. It is worked out per unit, not once for the community, 
+% because the models need not agree: one may call it e and another extracellular. 
+% A compartment with a recognised name wins; failing that, the one carrying the 
+% most single-metabolite reactions; failing that, 'e', with a line saying so. 
+% Say it yourself when you have any doubt:
+
+% one name for every unit, or one per unit in order
+% buildCommunityModel(models, names, 'externalCompartment', 'ext');
+% buildCommunityModel(models, names, 'externalCompartment', {'e','ext'});
+%% 
+% **Which metabolites are the same compound?** Two units meet in the pool only 
+% if their metabolites resolve to the same name. By default the compartment is 
+% stripped, which resolves glc-D[e] and glc-D_e to the same glc-D, so those two 
+% spellings share one pool row in either mode.
+% 
+% What stripping cannot do is reconcile identifiers from *different namespaces*. 
+% BiGG writes glucose glc__D[e] and AGORA writes it glc_D[e]: the same molecule 
+% under two schemes, and no amount of suffix-stripping will tell you so. If every 
+% identifier differed, nothing would cross-feed and you would be told:
+
+%   buildCommunityModel: pool 'u' is shared by 2 units but not one metabolite
+%   in it is reached by more than one of them, so nothing can cross-feed. The
+%   usual cause is identifiers from different namespaces; pass metaboliteKey
+%   to say how they correspond.
+%% 
+% In practice the mismatch is *partial*, which is worse, because there is nothing 
+% for that check to catch: the metabolites both schemes spell alike meet in the 
+% pool, the community looks like it is cross-feeding, and glucose is not among 
+% them. metaboliteKey is the way out. Given a metabolite identifier, return the 
+% name of the thing it is:
+
+% Drop the compartment, then collapse BiGG's doubled underscore.
+sameCompound = @(met) strrep(regexprep(met,'(\[\w+\]|_\w)$',''), '__', '_');
+% buildCommunityModel(models, names, 'metaboliteKey', sameCompound);
+%% 
+% metaboliteKey *replaces* the default rule rather than adding to it, so it 
+% has to handle every metabolite, not just the ones you are fixing. A key that 
+% rewrites only the identifiers you noticed leaves every other one with its compartment 
+% attached, so ac[e] and ac_e stop resolving together. Strip the compartment in 
+% your key, or you will lose the metabolites that were already fine.
+%% Where the bounds go
+% poolMedium is keyed by metabolite as your models spell it, resolved by looking 
+% each name up among the metabolites that exist rather than by stripping suffixes. 
+% A name matching nothing is reported rather than silently ignored, which is how 
+% you find out a medium file and a model disagree.
+% 
+% linkBounds bounds what crosses between one unit and one pool, and can be keyed 
+% either way. By met it applies to every unit's transport of that metabolite; 
+% by rxn it names one transport, TR_<metabolite>_<pool>__<unit>, which is what 
+% a measured per-unit rate is actually about.
+
+% every unit's acetate transport
+% 'linkBounds', struct('met',{'ac[e]'},'lb',{-5},'ub',{1000})
+% just the eater's
+% 'linkBounds', struct('rxn',{'TR_ac_u__E'},'lb',{-5},'ub',{1000})
+%% Coupling, and what a unit is gated on
+% Without coupling, a unit that is not growing can still run its metabolism 
+% and feed the others — a dead organism donating metabolites, which is not a community 
+% so much as a bookkeeping error. Coupling ties every reaction of a unit to its 
+% own anchor: a reaction may carry couplingFactor times the anchor's flux, plus 
+% couplingThreshold.
+
+loose = buildCommunityModel({feeder, eater}, {'F','E'}, ...
+    'poolMedium', glucoseOnly, 'couple', false, 'check', false);
+
+held = changeRxnBounds(community.model,'GROW__E',0,'b');
+held = optimizeCbModel(changeObjective(held,'OVERFLOW__E'));
+
+free = changeRxnBounds(loose.model,'GROW__E',0,'b');
+free = optimizeCbModel(changeObjective(free,'OVERFLOW__E'));
+
+fprintf('coupled, eater dead:    OVERFLOW runs at %.4g\n', held.f);
+fprintf('uncoupled, eater dead:  OVERFLOW runs at %.4g\n', free.f);
+%% 
+% 0.01 and 10. Coupled, the eater's only remaining slack is couplingThreshold; 
+% uncoupled, a unit that cannot grow at all still strips the pool of every acetate 
+% the feeder puts into it.
+% 
+% The anchor is the reaction the coupling gates on. It is taken from the model's 
+% objective, or from a reaction named biomass*, and refused rather than guessed 
+% when neither settles it — coupling a unit to the wrong reaction would throttle 
+% or free the whole unit with no error anywhere. Pass biomassReactions to say 
+% it outright.
+% 
+% The default couplingFactor of 1000 is the published value for a biomass anchor 
+% running at around 1. An anchor that runs at a different scale needs a different 
+% factor, and that is what the check reports:
+
+%   buildCommunityModel: at its best E runs GROW__E at 0.0004, so coupling
+%   caps its other reactions at 0.41. Raise couplingFactor or set couple to
+%   false.
+%% 
+% Each unit's measured capacity is in the units field, alongside the anchor 
+% and how it was decided:
+
+for k = 1:numel(community.units)
+    fprintf('%-4s anchor %-10s (%s), capacity %.4g\n', ...
+        community.units(k).name, community.units(k).anchor, ...
+        community.units(k).anchorSource, community.units(k).anchorCapacity);
+end
+%% 
+% The capacity is measured on the community, not on the unit alone: a unit that 
+% cannot grow in isolation may grow perfectly well on what the others secrete, 
+% and reporting it as dead would be a false alarm. One solve maximises every anchor 
+% at once, which lands on an arbitrary point of the optimal face, so a unit can 
+% read zero merely for having lost a tie to another on the same nutrient. Any 
+% such reading is taken again on its own.
+%% Drafts and databases
+% Pass databases and each unit holds a whole universal model, bounded by its 
+% own reconstruction where the two agree. The reactions only the database has 
+% are recorded as candidates to gap-fill in, which is what joint community gap-filling 
+% then works on.
+
+% filled = buildCommunityModel(drafts, names, 'databases', universal, ...
+%                              'poolMedium', medium);
+% filled.databaseReactions{1}   % what unit 1 may draw on
+% filled.draftReactions{1}      % what it already had
+%% 
+% Gap-filling the units together rather than one at a time lets a gap in one 
+% be closed by another's secretion instead of by a new reaction, which is why 
+% the community result is the smaller one.
+%% See also
+% Tutorial_multiTissue, for the same construction applied to the tissues of 
+% a body. The functions used here are buildCommunityModel and buildMultiTissueModel.
+##### SOURCE END #####
+-->
+</div></body></html>
