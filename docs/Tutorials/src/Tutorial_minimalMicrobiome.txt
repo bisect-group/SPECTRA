@@ -1,0 +1,196 @@
+# Minimal microbiomes
+
+A gut community contains many organisms that contribute nothing to the function you care about. A minimal microbiome is the smallest subset that still performs it - still grows, and still makes the metabolite you are interested in - at a stated fraction of what the whole community managed.
+
+This is the extraction machinery pointed at organisms rather than reactions, and the mapping is exact. Give each organism's anchor reaction a binary and a weight of 1, weight everything else 0, and minimising the weighted count is minimising the number of organisms present. It runs through spectraME with probType 'minNetMILP' and indicatorGroups set to the anchor reactions: the same routine as every other reconstruction in the package, with a different objective pointed at a different thing.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## Nine gut organisms
+
+The reconstructions are AGORA2 version 2.0, built 20 June 2022 by the Thiele group and obtained from VMH. The copies used here are the ones committed alongside the SPECTRA manuscript, which makes them fetchable in a few lines so the page runs from a clean directory with nothing to obtain by hand.
+
+```
+AGORA = ['https://raw.githubusercontent.com/bisect-group/SPECTRA' ...
+         '/paper_codes/MinimalMicrobiome/models'];
+strains = {'Bacteroides_thetaiotaomicron_VPI_5482'
+           'Bifidobacterium_adolescentis_ATCC_15703'
+           'Enterococcus_faecalis_V583'
+           'Escherichia_coli_SE11'
+           'Eubacterium_rectale_ATCC_33656'
+           'Faecalibacterium_prausnitzii_A2_165'
+           'Klebsiella_pneumoniae_pneumoniae_MGH78578'
+           'Lactobacillus_casei_ATCC_334'
+           'Streptococcus_thermophilus_LMG_18311'};
+tags = {'Bthe','Badl','Efae','Ecol','Erec','Fpra','Kpne','Lcas','Sthe'};
+
+if ~exist('agora_models','dir'); mkdir('agora_models'); end
+models = cell(numel(strains),1);
+for k = 1:numel(strains)
+    target = fullfile('agora_models',[strains{k} '.mat']);
+    if ~exist(target,'file')
+        websave(target, [AGORA '/' strains{k} '.mat']);
+    end
+    models{k} = readCbModel(target);
+end
+fprintf('%d models; the first has %d reactions and %d metabolites\n', ...
+    numel(models), numel(models{1}.rxns), numel(models{1}.mets));
+```
+
+```
+% 9 models; the first has 2438 reactions and 2041 metabolites
+```
+
+## Building the community
+
+```
+community = buildCommunityModel(models, tags, 'check', false);
+fprintf('%d reactions, %d metabolites, %d community exchanges\n', ...
+    numel(community.model.rxns), numel(community.model.mets), ...
+    numel(community.communityExchanges));
+```
+
+```
+% buildCommunityModel: pool 'u' has 612 metabolites reached by more than one unit.
+% 16199 reactions, 13730 metabolites, 708 community exchanges
+```
+
+Four seconds, and 16199 reactions over 13730 metabolites. Each organism keeps its own external compartment; a transport links it to the shared pool, and one community exchange connects the pool to the environment. So a metabolite moves organism to pool to organism, and cross-feeding becomes possible.
+
+'check' is off here only because it costs one LP per organism and the organisms cannot grow yet: AGORA reconstructions arrive with their exchanges closed, so nothing grows until a diet opens them. Leave it on once a diet is applied, and read couplingSummary.
+
+Worth confirming the pool really is shared. Collections differ on whether the external compartment is written glc_D_e or glc_D[e], and if the builder fails to recognise one of them each organism ends up trading through its own private pool named after its own spelling. Nothing errors; the community simply never cross-feeds. The line above is the check: 612 metabolites reached by more than one unit is a community, not a sum of isolates.
+
+## Applying a diet
+
+A diet is a set of uptake bounds on the community exchanges. The AGORA diets are tab-separated EX_<metabolite>(e)/bound pairs; the one used here is the sample diet published alongside the original implementation at RamanLab/minMicrobiome.
+
+```
+DIET = ['https://raw.githubusercontent.com/RamanLab/minMicrobiome' ...
+        '/main/tutorial/sample_diet.txt'];
+if ~exist('sample_diet.txt','file'); websave('sample_diet.txt', DIET); end
+
+raw = readlines('sample_diet.txt');
+raw = raw(strlength(strtrim(raw)) > 0);
+dietMet = cell(numel(raw),1);
+dietLb  = zeros(numel(raw),1);
+for k = 1:numel(raw)
+    parts = split(strtrim(raw(k)));
+    dietMet{k} = erase(erase(char(parts(1)),'EX_'),'(e)');
+    dietLb(k)  = -abs(str2double(parts(2)));
+end
+fprintf('%d metabolites in the diet\n', numel(dietMet));
+```
+
+```
+% 175 metabolites in the diet
+```
+
+Close everything first. A diet is defined as much by what it withholds as by what it supplies, and the organisms' default bounds are usually far more permissive than you intend.
+
+```
+model = community.model;
+model.lb(findRxnIDs(model, community.communityExchanges)) = 0;
+opened = 0;
+for k = 1:numel(dietMet)
+    at = findRxnIDs(model, sprintf('EX_%s[u]', dietMet{k}));
+    if at > 0
+        model.lb(at) = dietLb(k);
+        opened = opened + 1;
+    end
+end
+community.model = model;
+fprintf('%d of %d diet metabolites match a community exchange\n', ...
+    opened, numel(dietMet));
+```
+
+```
+% 146 of 175 diet metabolites match a community exchange
+```
+
+The 29 that do not match name things none of these nine organisms exchange.
+
+## Reducing the community
+
+Butyrate is the function to preserve. Keep 80% of the community's growth and 80% of its butyrate production.
+
+```
+result = minimalMicrobiome(community, 'products', {'EX_but[u]'}, ...
+    'growthFraction', 0.8, 'productFraction', 0.8, 'seed', 1);
+disp(result.summary)
+```
+
+```
+% minimalMicrobiome: the full community grows at 3.289 and produces 11.34; requiring 2.631 and 9.072.
+% 3 of 9 organisms; growth 3.225 (needed 2.631), production 11.16 (needed 9.072)
+%   kept:    Ecol, Fpra, Lcas
+%   dropped: Bthe, Badl, Efae, Erec, Kpne, Sthe
+```
+
+Five seconds. Three organisms of nine keep four fifths of the growth and nearly all of the butyrate.
+
+## How the requirements were set
+
+They are measured before they are imposed. The full community is solved for its growth, then for how much butyrate it can make while each organism keeps growthOptimumFraction of its own growth, and the minimal community is held to a fraction of each. Asking for a fraction of something unmeasured would make the answer depend on the units of the biomass reaction, which differ between reconstructions.
+
+Sub-optimal growth is the more realistic setting for the production measurement and gives the higher number, which is why growthOptimumFraction defaults to 0.99 rather than 1.
+
+```
+fprintf('full community: growth %.4g, production %.4g\n', ...
+    result.fullGrowth, result.fullProduction);
+fprintf('required:       growth %.4g, production %.4g\n', ...
+    result.requiredGrowth, result.requiredProduction);
+```
+
+## The membership is the binaries, not the fluxes
+
+An organism's anchor can survive in the reduced model on a trace of flux while its binary is off, and an organism whose binary is on need not carry any flux at all. So the membership is read from the binaries that spectraME reports, never from what the reactions happen to be doing.
+
+What makes an absent organism truly absent is the biomass coupling that buildCommunityModel applies: an organism whose anchor cannot grow has every one of its reactions pinned to couplingThreshold, so it cannot go on feeding the rest as a ghost. Build the community with 'couple' false and minimalMicrobiome will say so.
+
+```
+present = {result.membership([result.membership.present]).name};
+fprintf('present: %s\n', strjoin(sort(present), ', '));
+fprintf('reduced community: %d reactions\n', numel(result.community.model.rxns));
+```
+
+```
+% present: Ecol, Fpra, Lcas
+% reduced community: 7072 reactions
+```
+
+## Holding an organism in
+
+Sometimes membership is not up for negotiation: a strain is known to be there, and the question is who else is needed.
+
+```
+% withEcoli = minimalMicrobiome(community, 'products', {'EX_but[u]'}, ...
+%     'required', {'Bthe'});
+```
+
+A required organism keeps its anchor above tol and is given no binary at all, so it costs nothing and cannot be selected away.
+
+## Several products, weighted
+
+```
+% targets = struct('rxn', {'EX_but[u]','EX_ppa[u]'}, 'weight', {1, 0.5});
+% result = minimalMicrobiome(community, 'products', targets);
+```
+
+The production requirement is on the weighted sum, so a weight says how much one product matters against another, not how much of it is wanted.
+
+## On reproducibility
+
+The answer is a cardinality-minimal membership, and there is usually more than one of that size. Which one comes back is the solver's choice among equally good vertices, so a different solver or a different version of one may return a different set of the same size. The published nine-member study used AGORA 1.03 rather than AGORA2, so its membership is not directly comparable either; what is comparable is the size, the growth kept and the production kept.
+
+## See also
+
+Tutorial_community, for how the joined model is built and what pools and coupling do. Tutorial_gapfillCommunity, for the opposite operation: adding reactions to a community rather than taking members away. Tutorial_minimalReactome, for the same minimum-cardinality question asked of reactions. The functions used here are minimalMicrobiome, buildCommunityModel, communitySubset and couplingSummary.

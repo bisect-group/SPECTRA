@@ -6,7 +6,8 @@ are runnable as they stand: open one in MATLAB and step through it.
 
 Start with :doc:`consistency`, which every other routine depends on, then
 :doc:`extraction`. The rest can be read in any order, except that
-:doc:`multiTissue` assumes :doc:`community`.
+:doc:`multiTissue`, :doc:`gapfillCommunity` and :doc:`minimalMicrobiome`
+all assume :doc:`community`.
 
 Contents:
 
@@ -21,4 +22,6 @@ Contents:
    gapfillForTasks
    community
    multiTissue
+   gapfillCommunity
+   minimalMicrobiome
    minimalReactome

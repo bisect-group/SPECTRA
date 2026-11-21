@@ -92,7 +92,7 @@ The following code demonstrates the same for a toy network model:
 | **minNetMILP** | Minimize reaction count |  Extracting minimal networks preserving core reactions | Non-negative weights |
 | **minNetDC** | Cardinality minimization |  Extracting minimal networks preserving core reactions | Non-negative weights |
 | **tradeOff** | Maximize weighted reactions | Balancing positive vs. negative evidence | Any real values |
-| **optimBiomass** | Maximize biomass + minimize flux | Biological growth optimization | Non-negative weights |
+| **growthOptim** | Maximize biomass + minimize flux | Biological growth optimization | Non-negative weights |
 
 ## Step 3: Model reconstruction
 
@@ -118,3 +118,37 @@ tol = 1e-5; % defining the small positive number
   nSol = 5; % number of alternate solutions required
   [Model_tradeoff_altSols] = spectraME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
 ```
+
+# Beyond context-specific models
+
+The same machinery answers several other questions. What changes between
+them is the universal model, the evidence supplied and the objective
+chosen, not the routine called.
+
+| Question | Function |
+|---|---|
+| Which reactions of this model can carry flux at all? | `spectraCC` |
+| What is the smallest network that keeps my core reactions? | `spectraME`, `spectraCCME` |
+| Can this model do the things the organism can? | `checkTask`, `checkTasks`, `metabolicTask` |
+| What must I add so the draft grows in each of these media? | `gapfillForGrowth` |
+| What must I add so it can perform these tasks? | `gapfillForTasks` |
+| What is the fewest reactions that still grow and perform the tasks? | `minimalReactome` |
+| Join several organisms into one model that cross-feeds | `buildCommunityModel` |
+| Join the tissues of a body, sharing blood and a lumen | `buildMultiTissueModel` |
+| Gap-fill every member of a community at once | `gapfillCommunity` |
+| Which members of this community are actually needed? | `minimalMicrobiome` |
+| Did the extraction do what it was asked? | `checkExtraction` |
+
+A community comes back as a structure describing the joined model, which
+`communityOrganismOf`, `couplingSummary`, `communitySubset`,
+`communityWithModel` and `communityDecompose` read and reshape;
+`communityDecompose` is what turns a joint result back into models that
+stand on their own.
+
+Every one of these has a tutorial as a MATLAB live script under
+[`docs/Tutorials`](docs/Tutorials): open the `.mlx` in MATLAB and step
+through it. The reference documentation is under [`docs`](docs), and the
+test suite is run with `runSpectraTests` from [`test`](test).
+
+SPECTRA is also available as a Python package for cobrapy,
+[spectra-cobra](https://github.com/bisect-group/spectra-cobra).

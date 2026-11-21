@@ -217,15 +217,41 @@ The capacity is measured on the community, not on the unit alone: a unit that ca
 Pass databases and each unit holds a whole universal model, bounded by its own reconstruction where the two agree. The reactions only the database has are recorded as candidates to gap-fill in, which is what joint community gap-filling then works on.
 
 ```
-% filled = buildCommunityModel(drafts, names, 'databases', universal, ...
-%                              'poolMedium', medium);
-% filled.databaseReactions{1}   % what unit 1 may draw on
-% filled.draftReactions{1}      % what it already had
+core = readCbModel('ecoli_core_model.mat');
+draftA = removeRxns(core, {'GLCpts'}, 'metFlag', false);
+draftB = removeRxns(core, {'ACt2r','ACKr','PTAr'}, 'metFlag', false);
+
+SALTS = {'pi[e]','h2o[e]','h[e]','nh4[e]','o2[e]','co2[e]'};
+mets = [SALTS, {'glc-D[e]'}];
+coreMedium = struct('met', mets, ...
+    'lb', num2cell([-1000*ones(1,numel(SALTS)), -10]), ...
+    'ub', num2cell(1000*ones(1,numel(mets))));
+
+drafts = buildCommunityModel({draftA, draftB}, {'A','B'}, ...
+    'databases', core, 'poolMedium', coreMedium, 'check', false);
+fprintf('A may draw on %s; it already has %d reactions\n', ...
+    strjoin(drafts.databaseReactions{1}', ', '), ...
+    numel(drafts.draftReactions{1}));
+```
+
+```
+% A may draw on GLCpts; it already has 94 reactions
 ```
 
 Gap-filling the units together rather than one at a time lets a gap in one be closed by another's secretion instead of by a new reaction, which is why the community result is the smaller one.
 
+```
+filled = gapfillCommunity(drafts, 'seed', 1);
+fprintf('jointly, A added %d reactions\n', numel(filled.added{1}));
+```
+
+```
+% jointly, A added 0 reactions
+```
+
+A never needed a glucose transporter; it needed a neighbour. Tutorial_gapfillCommunity works that example through and shows what A has to invent when it is filled on its own.
+
 ## See also
 
-Tutorial_multiTissue, for the same construction applied to the tissues of a body. The functions used here are buildCommunityModel and buildMultiTissueModel.
+Tutorial_multiTissue, for the same construction applied to the tissues of a body. Tutorial_gapfillCommunity, for filling every unit of a community at once, and Tutorial_minimalMicrobiome, for cutting a community down to the members that still do the job. The functions used here are buildCommunityModel and buildMultiTissueModel, with communityOrganismOf, couplingSummary, communitySubset, communityWithModel and communityDecompose for reading and reshaping what they return.
 

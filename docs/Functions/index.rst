@@ -13,4 +13,5 @@ Contents:
    gapfilling
    verification
    community
+   microbiome
    reactome

@@ -1,0 +1,181 @@
+# Community gap-filling
+
+A draft reconstruction usually cannot do everything the organism can, and gap-filling borrows the smallest useful set of reactions from a universal model to close the gap. Done one organism at a time, that is Tutorial_gapfillForGrowth.
+
+Done for a whole community at once, something changes. A gap in one member can be closed by another member's secretion instead of by a new reaction. The community result is therefore the smaller one, and sometimes dramatically so: a member that would have had to invent a whole uptake pathway on its own may need nothing at all once it is sitting next to something that feeds it.
+
+That is what gapfillCommunity does. It is the same machinery as every other extraction in the package, pointed at a joined model: what a unit already has costs nothing, what only its database has costs one, and the solver is asked for the cheapest network in which every unit's anchor still carries flux.
+
+## Setting up
+
+```
+initCobraToolbox(false)
+changeCobraSolver('gurobi','all',0);
+% Assumes this live script is run from docs/Tutorials; edit if not.
+spectraRoot = fileparts(fileparts(pwd));
+addpath(genpath(fullfile(spectraRoot,'src')));
+```
+
+## Two drafts that need each other
+
+Both drafts are the E. coli core model with something taken out. The first cannot take up glucose; the second cannot touch acetate.
+
+```
+core = readCbModel('ecoli_core_model.mat');
+draftA = removeRxns(core, {'GLCpts'}, 'metFlag', false);
+draftB = removeRxns(core, {'ACt2r','ACKr','PTAr'}, 'metFlag', false);
+
+fprintf('core %d reactions; draft A %d; draft B %d\n', ...
+    numel(core.rxns), numel(draftA.rxns), numel(draftB.rxns));
+```
+
+```
+% core 95 reactions; draft A 94; draft B 92
+```
+
+The medium is aerobic minimal glucose. Glucose is the only carbon source, which is the point: A cannot eat it.
+
+```
+SALTS = {'pi[e]','h2o[e]','h[e]','nh4[e]','o2[e]','co2[e]'};
+mets = [SALTS, {'glc-D[e]'}];
+lbs  = num2cell([-1000*ones(1,numel(SALTS)), -10]);
+ubs  = num2cell(1000*ones(1,numel(mets)));
+medium = struct('met', mets, 'lb', lbs, 'ub', ubs);
+```
+
+## Each unit holds its own database
+
+Pass databases and each unit holds the whole universal model, bounded by its own reconstruction where the two agree. The reactions only the database has are the candidates to be filled in; the ones the draft already had are free.
+
+```
+community = buildCommunityModel({draftA, draftB}, {'A','B'}, ...
+    'databases', core, 'poolMedium', medium, 'check', false);
+
+fprintf('%d reactions over %d metabolites, %d community exchanges\n', ...
+    numel(community.model.rxns), numel(community.model.mets), ...
+    numel(community.communityExchanges));
+fprintf('candidates: A %d (%s), B %d (%s)\n', ...
+    numel(community.databaseReactions{1}), strjoin(community.databaseReactions{1}',','), ...
+    numel(community.databaseReactions{2}), strjoin(community.databaseReactions{2}',','));
+```
+
+```
+% 210 reactions over 164 metabolites, 20 community exchanges
+% candidates: A 1 (GLCpts), B 3 (ACKr,ACt2r,PTAr)
+```
+
+Each unit carries the core model's 95 reactions less its own exchanges, plus a transport into the pool for each of the 20 exchangeable metabolites. Only the reactions missing from a draft are candidates, because everything else is already there and costs nothing.
+
+## Filling them together
+
+```
+joint = gapfillCommunity(community, 'seed', 1);
+disp(joint.summary)
+```
+
+```
+% gapfillCommunity: 190 of 210 reactions can carry flux in this community.
+% gapfillCommunity: filling 2 units with minNetMILP; 20 candidate reactions, 2 core.
+% 177 reactions across 2 units; 0 added, 2 core required.
+%   A                0 added
+%   B                0 added
+```
+
+Nothing was added at all, and both units grow:
+
+```
+grown = optimizeCbModel(joint.community.model);
+fprintf('the filled community grows at %.4g\n', grown.f);
+```
+
+```
+% the filled community grows at 0.831
+```
+
+A is living on what B secretes. It never needed a glucose transporter; it needed a neighbour.
+
+## The same drafts, filled alone
+
+Build each as a community of one and fill it the same way. Nothing else changes: same medium, same database, same formulation.
+
+```
+for pair = {{'A', draftA}, {'B', draftB}}
+    name = pair{1}{1};
+    solo = buildCommunityModel(pair{1}(2), {name}, 'databases', core, ...
+        'poolMedium', medium, 'check', false);
+    alone = gapfillCommunity(solo, 'seed', 1);
+    fprintf('%s alone added %d: %s\n', name, numel(alone.added{1}), ...
+        strjoin(alone.added{1}', ', '));
+end
+```
+
+```
+% A alone added 1: GLCpts
+% B alone added 0:
+```
+
+There is the whole claim in one line. A on its own has to invent glucose uptake; A in the community does not. B was never in trouble either way, which is why it is the one doing the feeding.
+
+## Anchors are core by default
+
+Every unit's anchor is required, which is what makes every unit grow rather than only the ones that happen to be cheapest to keep. Turn it off and the solver will happily satisfy the medium with whichever subset costs least.
+
+```
+% unanchored = gapfillCommunity(community, 'anchorsAreCore', false);
+```
+
+Further reactions can be required by name, tagged as the community model tags them:
+
+```
+% held = gapfillCommunity(community, 'coreRxns', {'ACt2r__A','CYTBD__B'});
+```
+
+## Keeping the draft
+
+By default every reaction a unit already had is kept, whether or not the solution uses it. That is what separates gap-filling from extraction: the formulation returns the smallest network meeting the requirement, which would otherwise throw away parts of the draft that carry no flux under this one medium.
+
+```
+% lean = gapfillCommunity(community, 'keepDraft', false, 'probType', 'minNetLP');
+```
+
+Under minNetMILP this makes little difference, because a reaction that costs nothing gets no binary and so nothing is deciding whether to keep it. Under minNetLP, which decides by flux, it matters.
+
+## Weights, and where evidence goes
+
+What a reaction costs is what steers the result, and weights are where sequence evidence enters: a reaction the organism's genome supports should cost less than one it does not.
+
+```
+% evidence = struct('rxn', {'GLCpts__A','ACt2r__B'}, 'weight', {0.1, 10});
+% steered = gapfillCommunity(community, 'weights', evidence);
+```
+
+A weight of zero makes a reaction free; a large weight all but rules it out. Weights are applied last, so they override both the draft and the pool transports.
+
+## Taking the result apart
+
+The filled community is still a community. communityDecompose splits it back into models that stand on their own, with the tags stripped and an exchange wherever the unit met a pool, so the rates it was held to in the community survive the split.
+
+```
+units = communityDecompose(joint.community);
+for k = 1:numel(units)
+    fprintf('%s: %d reactions, %d metabolites\n', units(k).name, ...
+        numel(units(k).model.rxns), numel(units(k).model.mets));
+end
+```
+
+```
+% A: 86 reactions, 68 metabolites
+% B: 84 reactions, 66 metabolites
+```
+
+## A caution about coupling
+
+buildCommunityModel ties each unit's reactions to its own anchor, and every formulation in SPECTRA honours that coupling. A unit whose anchor cannot carry flux therefore has every one of its reactions pinned to couplingThreshold, which is 0.01 by default. If a fill comes back refusing to force flux through a unit, look at couplingSummary before looking at the formulation.
+
+```
+% disp(couplingSummary(community))
+```
+
+## See also
+
+Tutorial_community, for how the joined model is built. Tutorial_gapfillForGrowth and Tutorial_gapfillForTasks, for filling one model at a time. Tutorial_minimalMicrobiome, for the opposite operation on a community: taking members away rather than adding reactions. The functions used here are gapfillCommunity, buildCommunityModel, communityDecompose and couplingSummary.
