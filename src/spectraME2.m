@@ -44,6 +44,12 @@ core = ismember([1:n],core)';
 IrR = model.ub<=0; % reactions irreversible in reverse direction
 temp = model.ub(IrR);
 model.S(:,IrR) = -model.S(:,IrR);
+% A coupling constraint is written over the same fluxes, so flipping a
+% reaction's column in S without flipping it in C would silently change
+% what the constraint says about that reaction.
+if isfield(model,'C') && ~isempty(model.C)
+    model.C(:,IrR) = -model.C(:,IrR);
+end
 model.ub(IrR) = -1*model.lb(IrR);
 model.lb(IrR) = -1*temp;
 rev = true(n,1);
@@ -58,7 +64,9 @@ model.ub(:)=Inf;
 temp_core = core;
 flux = zeros(n,1);
 LPS=0;
+stalls = 0;
 while any(temp_core)
+    before = sum(temp_core);
     LPS = LPS+1;
     [flux1,~] = forward(model,temp_core,tol,1);
     if sum(abs(flux))==0
@@ -76,6 +84,7 @@ while any(temp_core)
     c1=unifrnd(0.45,0.55,1);
     flux = (c1*flux)+((1-c1)*flux2);
     temp_core(core==1 & abs(flux)>=tol*1e-1) = 0; 
+    stalls = assertCoreProgress(temp_core,before,stalls,tol);
 end
 
 direction = zeros(n,1);
@@ -92,7 +101,9 @@ if nSol>1
     for j=2:nSol
         temp_core = core;
         flux = zeros(n,1);
+        stalls = 0;
         while any(temp_core)
+            before = sum(temp_core);
             LPS = LPS+1;
             r = randi(2);
             if r==1
@@ -119,6 +130,7 @@ if nSol>1
             c1=unifrnd(0.45,0.55,1);
             flux = (c1*flux)+((1-c1)*flux2);
             temp_core(core==1 & abs(flux)>=tol*1e-1) = 0; 
+            stalls = assertCoreProgress(temp_core,before,stalls,tol);
         end
 
         direction = zeros(n,1);

@@ -174,15 +174,18 @@ ub = model.ub;
 ub(direction==-1)=-tol*ones(sum(direction==-1),1);
 ub = [ub;ones(nGroups+(2*n_rev),1)];
 
+% coupling constraints, where the model has any
+[Acpl,bcpl,csensecpl] = couplingRows(model,nGroups+(2*n_rev));
+
 % Set up MILP problem
-MILPproblem.A=[Aeq1;Aeq2;Aineq1;Aineq2;Aineq3;Aineq4;Aineq5];
-MILPproblem.b=[beq1;beq2;bineq1;bineq2;bineq3;bineq4;bineq5];
+MILPproblem.A=[Aeq1;Aeq2;Aineq1;Aineq2;Aineq3;Aineq4;Aineq5;Acpl];
+MILPproblem.b=[beq1;beq2;bineq1;bineq2;bineq3;bineq4;bineq5;bcpl];
 MILPproblem.lb=lb;
 MILPproblem.ub=ub;
 MILPproblem.c=f;
 MILPproblem.osense=-1; % maximize
 MILPproblem.vartype = [repmat('C',n,1);repmat('B',nGroups+(2*n_rev),1)];
-MILPproblem.csense = [csenseeq1; csenseeq2; csenseineq1; csenseineq2; csenseineq3; csenseineq4; csenseineq5];
+MILPproblem.csense = [csenseeq1; csenseeq2; csenseineq1; csenseineq2; csenseineq3; csenseineq4; csenseineq5; csensecpl];
 changeCobraSolverParams('MILP', 'feasTol', 1e-9);
 fprintf(['tradeOff: MILP feasTol set to 1e-9. This is a global COBRA ' ...
          'setting and stays in effect after this function returns.\n']);

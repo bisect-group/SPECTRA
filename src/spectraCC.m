@@ -51,6 +51,12 @@ end
 IrR = model.ub<=0; % reactions irreversible in reverse direction
 temp = model.ub(IrR);
 model.S(:,IrR) = -model.S(:,IrR);
+% A coupling constraint is written over the same fluxes, so flipping a
+% reaction's column in S without flipping it in C would silently change
+% what the constraint says about that reaction.
+if isfield(model,'C') && ~isempty(model.C)
+    model.C(:,IrR) = -model.C(:,IrR);
+end
 model.ub(IrR) = -1*model.lb(IrR);
 model.lb(IrR) = -1*temp;
 rev = ones(n,1);

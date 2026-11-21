@@ -1,6 +1,6 @@
-function [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed)
+function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff)
 % USAGE:
-%   [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed)
+%   [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff)
 %
 % INPUTS:
 %   model:    COBRA model structure. The model has to be a consistent model
@@ -32,12 +32,34 @@ function [Model,LPS] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSol
 %                 phase, making the result reproducible across runs. Leave
 %                 it out to draw them unseeded, as every earlier version of
 %                 this function did. (Default: none)
+%   indicatorGroups: Which reactions share a binary in the MILP, as either
+%                 a cell array of reaction index vectors (one per group) or
+%                 a cell array of reaction IDs (one binary each, every other
+%                 free reaction kept outright). Naming a handful of
+%                 reactions is what makes a selection problem tractable on a
+%                 large model: one binary per organism of a community, say,
+%                 rather than one per reaction. Grouping several together
+%                 keeps or drops them as one, which is how a requirement
+%                 holding in several conditions at once is expressed. Works
+%                 only for 'minNetMILP' and 'tradeOff'. (Default: one binary
+%                 per free reaction)
+%   inclusionCutoff: Absolute flux at which a reaction counts as included.
+%                 Handed to the formulation. (Default: its own, tol*1e-7)
 %
 % OUTPUTS:
 %   Model:     The consistent model with no blocked reactions and has
 %              all the core reactions in them (If nSol==1). A cell 
 %              consisting of consistent models in them (If nSol > 1)
 %   LPS:       Number of LPs used to get ConsModel, if probType is 'minNetLP'
+%   selection: What the MILP's binaries decided, as a structure with fields
+%              groups (the resolved groups, as index vectors), selected (a
+%              logical, one entry per group), selectedRxns (the IDs of the
+%              reactions in the groups that are on) and ungoverned (a
+%              logical over the reactions, true where no binary governed the
+%              reaction and it was therefore kept). Empty for a formulation
+%              with no binaries. Reading the membership off the model is not
+%              equivalent: a reaction whose binary is off can still carry a
+%              trace of flux, and one that is on need not carry any.
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
@@ -72,12 +94,24 @@ end
 if exist('seed', 'var') && ~isempty(seed)
     rng(seed);
 end
+if ~exist('indicatorGroups', 'var')
+    indicatorGroups = {};
+end
+if ~exist('inclusionCutoff', 'var')
+    inclusionCutoff = [];
+end
 
 [~,n] = size(model.S);
 coreRxns = ismember(1:n,coreRxns)';
 IrR = model.ub<=0; % reactions irreversible in reverse direction
 temp = model.ub(IrR);
 model.S(:,IrR) = -model.S(:,IrR);
+% A coupling constraint is written over the same fluxes, so flipping a
+% reaction's column in S without flipping it in C would silently change
+% what the constraint says about that reaction.
+if isfield(model,'C') && ~isempty(model.C)
+    model.C(:,IrR) = -model.C(:,IrR);
+end
 model.ub(IrR) = -1*model.lb(IrR);
 model.lb(IrR) = -1*temp;
 rev = ones(n,1);
@@ -98,7 +132,14 @@ else
          'not ''%s''.'], consType);
 end
 
+% Indicator groups belong to the MILP formulations: they are groupings of
+% the binaries, and a formulation without binaries has nothing to group.
+[indicatorGroups, milpWeights] = resolveGroupArgument(indicatorGroups, ...
+    weights, model.rxns, probType);
+
+stalls = 0;
 while any(temp_core)
+    before = sum(temp_core);
     LPS = LPS+1;
     [flux1,~] = forward(model,temp_core,tol,steadystate);
     assertCoreFeasible(flux1,sum(coreRxns),tol);
@@ -118,6 +159,7 @@ while any(temp_core)
     c1=unifrnd(0.45,0.55,1);
     flux = (c1*flux)+((1-c1)*flux2);
     temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
+    stalls = assertCoreProgress(temp_core,before,stalls,tol);
 end
 
 
@@ -125,6 +167,7 @@ direction = zeros(n,1);
 direction(coreRxns==1&flux>0) = 1;
 direction(coreRxns==1&flux<0) = -1;
 
+selected = [];
 if strcmp(probType,'minNetMILP')
     if ~exist('solveTime', 'var') || isempty(solveTime)
         solveTime=7200;     
@@ -135,7 +178,7 @@ if strcmp(probType,'minNetMILP')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,flux,prevSols);
+    [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff);
 elseif strcmp(probType,'minNetLP')
     LPS = LPS+1;
     [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
@@ -153,7 +196,7 @@ elseif strcmp(probType,'tradeOff')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x] = tradeOff(model,direction,weights,tol,steadystate,solveTime,flux,prevSols);
+    [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff);
 end
 
 flux = x(1:numel(model.rxns));
@@ -161,6 +204,7 @@ Model = removeRxns(model, setdiff(model.rxns,model.rxns(reacInd)));
 if remGene
     Model = removeUnusedGenes(Model);
 end
+selection = reportSelection(indicatorGroups,selected,model.rxns,direction);
 
 if nSol>1
     Model = {Model};
@@ -170,7 +214,9 @@ if nSol>1
             LPS_ = 0;
             temp_core = coreRxns;
             flux = zeros(n,1);
+            stalls = 0;
             while any(temp_core)
+                before = sum(temp_core);
                 LPS_ = LPS_+1;
                 r = randi(2);
                 if r==1
@@ -199,11 +245,13 @@ if nSol>1
                 c1=unifrnd(0.45,0.55,1);
                 flux = (c1*flux)+((1-c1)*flux2);
                 temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
+                stalls = assertCoreProgress(temp_core,before,stalls,tol);
             end
         
             direction = zeros(n,1);
             direction(coreRxns==1&flux>0) = 1;
             direction(coreRxns==1&flux<0) = -1;
+            selected = [];
             if strcmp(probType,'minNetMILP')
                 if ~exist('solveTime', 'var') || isempty(solveTime)
                     solveTime=7200;
@@ -214,7 +262,7 @@ if nSol>1
                     sol = optimizeCbModel(model);
                     flux = sol.x;
                 end
-                [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,flux);
+                [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,{},indicatorGroups,inclusionCutoff);
             elseif strcmp(probType,'minNetLP')
                 LPS_ = LPS_+1;
                 [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
@@ -232,7 +280,7 @@ if nSol>1
                     sol = optimizeCbModel(model);
                     flux = sol.x;
                 end
-                [reacInd,x] = tradeOff(model,direction,weights,tol,steadystate,solveTime,flux);
+                [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,{},indicatorGroups,inclusionCutoff);
             end
     
             flux = x(1:numel(model.rxns));
@@ -245,11 +293,15 @@ if nSol>1
         end
     elseif strcmp(altSolMethod,'pathwayExclusion') % the problem has to be an milp problem
         for j=2:nSol
-            prevSols = [prevSols;find(reacInd)];
+            if isempty(indicatorGroups)
+                prevSols = [prevSols;find(reacInd)];
+            else
+                prevSols = [prevSols;{find(selected)}];
+            end
             if strcmp(probType,'minNetMILP')
-                [reacInd,~,stat] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,[],prevSols);
+                [reacInd,~,stat,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,[],prevSols,indicatorGroups,inclusionCutoff);
             elseif strcmp(probType,'tradeOff')
-                [reacInd,~,stat] = tradeOff(model,direction,weights,tol,steadystate,solveTime,[],prevSols);
+                [reacInd,~,stat,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,[],prevSols,indicatorGroups,inclusionCutoff);
             end
             if stat~=1
                 break
@@ -261,7 +313,77 @@ if nSol>1
             Model = [Model;Mod];
         end
     end
+    if ~isempty(selected)
+        selection = reportSelection(indicatorGroups,selected,model.rxns,direction);
+    end
 end
+
+
+function [groups,milpWeights] = resolveGroupArgument(given,weights,rxns,probType)
+% Turns the indicatorGroups argument into index vectors and group weights.
+%
+% Reaction IDs are accepted as well as indices, because naming the handful
+% of reactions that get a binary is how the argument is usually used, and
+% looking the indices up by hand is a step that only invites mistakes.
+groups = {};
+milpWeights = weights;
+if isempty(given)
+    return
+end
+if ~ismember(probType,{'minNetMILP','tradeOff'})
+    error('spectraME:groupsWithoutBinaries', ...
+        ['indicatorGroups groups the MILP''s binaries, and ''%s'' has ' ...
+         'none. Use ''minNetMILP'' or ''tradeOff''.'], probType);
+end
+if ~iscell(given)
+    error('spectraME:badIndicatorGroups', ...
+        ['indicatorGroups must be a cell array, of reaction index ' ...
+         'vectors or of reaction IDs.']);
+end
+named = all(cellfun(@(g) ischar(g) || (isstring(g) && isscalar(g)), given(:)'));
+if named
+    ids = cellstr(given(:));
+    [found,at] = ismember(ids,rxns);
+    if ~all(found)
+        missing = ids(~found);
+        error('spectraME:unknownIndicatorReaction', ...
+            'No reaction %s in the model, so it cannot be given a binary.', ...
+            missing{1});
+    end
+    groups = num2cell(at(:));
+else
+    groups = cellfun(@(g) g(:), given(:), 'UniformOutput', false);
+end
+
+% A weight per reaction is what every other caller passes, so take it and
+% add up each group's. One binary per reaction leaves every weight as it
+% was; the copies of one reaction across replicated conditions share a
+% weight, so the sum rescales every group alike and leaves the argument of
+% the minimum where it was.
+if numel(weights) == numel(rxns) && numel(groups) ~= numel(weights)
+    milpWeights = cellfun(@(g) sum(weights(g)), groups);
+    milpWeights = milpWeights(:);
+end
+
+
+function selection = reportSelection(indicatorGroups,selected,rxns,direction)
+% Packs what the binaries decided into a structure, or [] where there were none.
+if isempty(selected)
+    selection = [];
+    return
+end
+[groupOf,nGroups,ungoverned] = resolveIndicatorGroups(indicatorGroups, ...
+    direction == 0, numel(rxns));
+groups = cell(nGroups,1);
+for g = 1:nGroups
+    groups{g} = find(groupOf == g);
+end
+on = false(numel(rxns),1);
+for g = reshape(find(selected(:)),1,[])
+    on(groups{g}) = true;
+end
+selection = struct('groups',{groups},'selected',{logical(selected(:))}, ...
+    'selectedRxns',{rxns(on)},'ungoverned',{ungoverned});
 
 
 function assertCoreFeasible(flux,nCore,tol)

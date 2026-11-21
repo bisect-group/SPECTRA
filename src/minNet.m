@@ -109,14 +109,17 @@ if strcmp(probType,'minNetLP')
     ub(direction==-1)=-tol*ones(sum(direction==-1),1);
     ub = [ub;Inf(n_,1)];
 
+    % coupling constraints, where the model has any
+    [Acpl,bcpl,csensecpl] = couplingRows(model,n_);
+
     % Set up LP problem
-    LPproblem.A=[Aeq;Aineq1;Aineq2];
-    LPproblem.b=[beq;bineq1;bineq2];
+    LPproblem.A=[Aeq;Aineq1;Aineq2;Acpl];
+    LPproblem.b=[beq;bineq1;bineq2;bcpl];
     LPproblem.lb=lb;
     LPproblem.ub=ub;
     LPproblem.c=f;
     LPproblem.osense=1;%minimise
-    LPproblem.csense = [csenseeq; csenseineq1; csenseineq2];
+    LPproblem.csense = [csenseeq; csenseineq1; csenseineq2; csensecpl];
     solution = solveCobraLP(LPproblem);
     stat =solution.stat;
     if stat~=1
@@ -194,15 +197,18 @@ elseif strcmp(probType,'minNetMILP')
     ub(direction==-1)=-tol*ones(sum(direction==-1),1);
     ub = [ub;ones(nGroups,1)];
 
+    % coupling constraints, where the model has any
+    [Acpl,bcpl,csensecpl] = couplingRows(model,nGroups);
+
     % Set up MILP problem
-    MILPproblem.A=[Aeq;Aineq1;Aineq2;Aineq3];
-    MILPproblem.b=[beq;bineq1;bineq2;bineq3];
+    MILPproblem.A=[Aeq;Aineq1;Aineq2;Aineq3;Acpl];
+    MILPproblem.b=[beq;bineq1;bineq2;bineq3;bcpl];
     MILPproblem.lb=lb;
     MILPproblem.ub=ub;
     MILPproblem.c=f;
     MILPproblem.osense=1; % minimise
     MILPproblem.vartype = [repmat('C',n,1);repmat('B',nGroups,1)];
-    MILPproblem.csense = [csenseeq; csenseineq1; csenseineq2;csenseineq3];
+    MILPproblem.csense = [csenseeq; csenseineq1; csenseineq2;csenseineq3; csensecpl];
     changeCobraSolverParams('MILP', 'feasTol', 1e-9);
     fprintf(['minNet: MILP feasTol set to 1e-9. This is a global COBRA ' ...
              'setting and stays in effect after this function returns.\n']);
@@ -247,9 +253,12 @@ elseif strcmp(probType,'minNetDC')
    
 
     % Set up MILP problem
-    DCproblem.A=Aeq;
-    DCproblem.b=beq;
-    DCproblem.csense = csenseeq;
+    % coupling constraints, where the model has any
+    [Acpl,bcpl,csensecpl] = couplingRows(model,0);
+
+    DCproblem.A=[Aeq;Acpl];
+    DCproblem.b=[beq;bcpl];
+    DCproblem.csense = [csenseeq; csensecpl];
     DCproblem.lb=lb;
     DCproblem.ub=ub;
     DCproblem.p = direction==0;

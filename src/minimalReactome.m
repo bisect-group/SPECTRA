@@ -977,8 +977,10 @@ isCore = false(n, 1);
 isCore(core) = true;
 remaining = isCore;
 flux = zeros(n, 1);
+stalls = 0;
 
 while any(remaining)
+    before = sum(remaining);
     flux1 = forward(model, remaining, tol, 1);
     assertForcedFeasible(flux1, sum(isCore), tol);
     if sum(abs(flux)) == 0
@@ -996,6 +998,7 @@ while any(remaining)
     c1 = unifrnd(0.45, 0.55, 1);
     flux = (c1 * flux) + ((1 - c1) * flux2);
     remaining(isCore & abs(flux) >= tol * 1e-1) = 0;
+    stalls = assertCoreProgress(remaining, before, stalls, tol);
 end
 
 direction(isCore & flux > 0) = 1;

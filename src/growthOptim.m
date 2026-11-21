@@ -63,14 +63,17 @@ ub = model.ub;
 ub(direction==-1)=-tol*ones(sum(direction==-1),1);
 ub = [ub;Inf(n,1)];
 
+% coupling constraints, where the model has any
+[Acpl,bcpl,csensecpl] = couplingRows(model,n);
+
 % Set up LP problem
-LPproblem.A=[Aeq;Aineq1;Aineq2];
-LPproblem.b=[beq;bineq1;bineq2];
+LPproblem.A=[Aeq;Aineq1;Aineq2;Acpl];
+LPproblem.b=[beq;bineq1;bineq2;bcpl];
 LPproblem.lb=lb;
 LPproblem.ub=ub;
 LPproblem.c=f;
 LPproblem.osense=-1;%maximize
-LPproblem.csense = [csenseeq; csenseineq1; csenseineq2];
+LPproblem.csense = [csenseeq; csenseineq1; csenseineq2; csensecpl];
 solution = solveCobraLP(LPproblem);
 stat =solution.stat;
 if stat~=1

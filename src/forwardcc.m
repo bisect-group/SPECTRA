@@ -45,14 +45,17 @@ ub = model.ub;
 lb = [lb;-Inf(n_core,1)];
 ub = [ub; tol*ones(n_core,1)];
 
+% coupling constraints, where the model has any
+[Acpl,bcpl,csensecpl] = couplingRows(model,n_core);
+
 % Set up LP problem
-LPproblem.A=[Aeq;Aineq];
-LPproblem.b=[beq;bineq];
+LPproblem.A=[Aeq;Aineq;Acpl];
+LPproblem.b=[beq;bineq;bcpl];
 LPproblem.lb=lb;
 LPproblem.ub=ub;
 LPproblem.c=f;
 LPproblem.osense=1;%minimise
-LPproblem.csense = [csenseeq; csenseineq];
+LPproblem.csense = [csenseeq; csenseineq; csensecpl];
 
 solution = solveCobraLP(LPproblem);
 if solution.stat~=1
