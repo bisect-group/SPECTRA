@@ -1,9 +1,9 @@
-function result = gapfillForGrowth(draft,universal,media,minGrowth,objectiveRxn,tol,probType,freeRxns,solveTime,seed)
+function result = gapfillForGrowth(draft,universal,media,minGrowth,objectiveRxn,tol,probType,freeRxns,solveTime,seed,weights)
 % Adds reactions until a draft grows in every medium of a panel
 %
 % USAGE:
 %
-%    result = gapfillForGrowth(draft,universal,media,minGrowth,objectiveRxn,tol,probType,freeRxns,solveTime,seed)
+%    result = gapfillForGrowth(draft,universal,media,minGrowth,objectiveRxn,tol,probType,freeRxns,solveTime,seed,weights)
 %
 % INPUTS:
 %    draft:             COBRA model structure that does not yet grow
@@ -46,6 +46,17 @@ function result = gapfillForGrowth(draft,universal,media,minGrowth,objectiveRxn,
 %    solveTime:         Maximum runtime per MILP, in seconds (Default: 300).
 %    seed:              Seed for spectraME's random coefficients. Leave it
 %                       out to draw them unseeded. (Default: none)
+%    weights:           Struct array with fields rxn and weight, setting
+%                       what particular reactions cost rather than the
+%                       usual nothing for what the draft already has and
+%                       one for everything else. The usual reason is
+%                       sequence evidence: a reaction the organism's genome
+%                       supports should cost less than one it does not, so
+%                       that the fill prefers it. A weight of zero makes a
+%                       reaction free, which is what freeRxns does, and a
+%                       large weight all but rules one out. Applied last,
+%                       so it overrides both the draft and freeRxns.
+%                       (Default: none)
 %
 % OUTPUTS:
 %    result:            Structure with fields:
@@ -116,6 +127,14 @@ end
 if ~exist('seed', 'var')
     seed = [];
 end
+if ~exist('weights', 'var') || isempty(weights)
+    weights = struct('rxn', {}, 'weight', {});
+end
+if ~isstruct(weights) || (~isempty(weights) && ...
+        ~all(isfield(weights, {'rxn', 'weight'})))
+    error('gapfillForGrowth:badWeights', ...
+        'weights must be a struct array with fields rxn and weight.');
+end
 
 if ~any(strcmp(probType,{'minNetMILP','minNetLP'}))
     error('gapfillForGrowth:badProbType', ...
@@ -157,12 +176,13 @@ for k = 1:numel(media)
     end
 
     free = unique([freeIDs; added]);
-    weights = ones(numel(constrained.rxns),1);
-    weights(ismember(constrained.rxns, free)) = 0;
+    cost = ones(numel(constrained.rxns),1);
+    cost(ismember(constrained.rxns, free)) = 0;
+    cost = applyWeights(cost, constrained.rxns, weights);
 
     try
         filled = spectraME(constrained, findRxnIDs(constrained,biomass), ...
-            tol, 'stoichiometry', weights, 1, 'coreDirection', probType, ...
+            tol, 'stoichiometry', cost, 1, 'coreDirection', probType, ...
             solveTime, 0, {}, seed);
     catch err
         failedLabels{end+1,1} = media(k).label; %#ok<AGROW>
@@ -208,6 +228,25 @@ if ~isempty(failedLabels)
     lines{end+1} = sprintf('  %d medium/media could not be solved', numel(failedLabels));
 end
 result.summary = strjoin(lines, newline);
+end
+
+
+function cost = applyWeights(cost, rxns, weights)
+% Overrides the cost of the reactions the caller named.
+%
+% Applied after the draft and freeRxns rather than before, because the
+% caller's own weight is the more specific statement: saying a reaction
+% costs 0.2 and having it silently read 0 because the draft already has it
+% would make the argument useless where it is most wanted.
+for i = 1:numel(weights)
+    at = find(strcmp(rxns, weights(i).rxn), 1);
+    if isempty(at)
+        error('gapfillForGrowth:unknownWeight', ...
+            ['No reaction ''%s'' in the universal model, so it cannot be ' ...
+             'weighted.'], weights(i).rxn);
+    end
+    cost(at) = weights(i).weight;
+end
 end
 
 

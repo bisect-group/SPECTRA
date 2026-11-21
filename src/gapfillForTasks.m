@@ -1,9 +1,9 @@
-function result = gapfillForTasks(draft,universal,tasks,tol,probType,freeRxns,solveTime,seed,essentialRxns,coreSolve,repair)
+function result = gapfillForTasks(draft,universal,tasks,tol,probType,freeRxns,solveTime,seed,essentialRxns,coreSolve,repair,weights)
 % Adds reactions until a draft can perform a list of metabolic tasks
 %
 % USAGE:
 %
-%    result = gapfillForTasks(draft,universal,tasks,tol,probType,freeRxns,solveTime,seed,essentialRxns,coreSolve,repair)
+%    result = gapfillForTasks(draft,universal,tasks,tol,probType,freeRxns,solveTime,seed,essentialRxns,coreSolve,repair,weights)
 %
 % INPUTS:
 %    draft:             COBRA model structure that cannot yet perform every
@@ -28,6 +28,16 @@ function result = gapfillForTasks(draft,universal,tasks,tol,probType,freeRxns,so
 %                       set (Default: true).
 %    repair:            Whether to follow up task by task on whatever still
 %                       fails (Default: true).
+%    weights:           Struct array with fields rxn and weight, setting
+%                       what particular reactions cost rather than the
+%                       usual nothing for what the draft already has and
+%                       one for everything else. The usual reason is
+%                       sequence evidence: a reaction the organism's genome
+%                       supports should cost less than one it does not, so
+%                       that the fill prefers it. Applied last, so it
+%                       overrides both the draft and freeRxns, and it
+%                       applies to the repair solves as well as to the core
+%                       one. (Default: none)
 %
 % OUTPUTS:
 %    result:            Structure with fields:
@@ -93,6 +103,14 @@ end
 if ~exist('repair', 'var') || isempty(repair)
     repair = true;
 end
+if ~exist('weights', 'var') || isempty(weights)
+    weights = struct('rxn', {}, 'weight', {});
+end
+if ~isstruct(weights) || (~isempty(weights) && ...
+        ~all(isfield(weights, {'rxn', 'weight'})))
+    error('gapfillForTasks:badWeights', ...
+        'weights must be a struct array with fields rxn and weight.');
+end
 
 draftIDs = draft.rxns(:);
 draftIDs = draftIDs(ismember(draftIDs, universal.rxns));
@@ -124,11 +142,12 @@ else
 end
 
 if ~isempty(core) && coreSolve
-    weights = ones(numel(universal.rxns),1);
-    weights(ismember(universal.rxns, freeIDs)) = 0;
+    cost = ones(numel(universal.rxns),1);
+    cost(ismember(universal.rxns, freeIDs)) = 0;
+    cost = applyWeights(cost, universal.rxns, weights, true);
     try
         filled = spectraME(universal, findRxnIDs(universal,core), tol, ...
-            'stoichiometry', weights, 1, 'coreDirection', probType, ...
+            'stoichiometry', cost, 1, 'coreDirection', probType, ...
             solveTime, 0, {}, seed);
         added = unique([added; setdiff(filled.rxns, draftIDs)]);
     catch err
@@ -158,12 +177,15 @@ if repair
         end
 
         n = numel(constrained.rxns);
-        weights = ones(n,1);
-        weights(ismember(constrained.rxns, present)) = 0;
+        cost = ones(n,1);
+        cost(ismember(constrained.rxns, present)) = 0;
+        % The task scaffolding is not in the universal model, so a weight
+        % that names nothing here is not an error the way it is above.
+        cost = applyWeights(cost, constrained.rxns, weights, false);
         % Inside the task's own constraints the model is already forced to
         % perform it, so minimising the count of reactions that are not
         % already present gives the cheapest repair directly.
-        [reacInd,~,stat] = minNet(constrained, zeros(n,1), weights, tol, 1, ...
+        [reacInd,~,stat] = minNet(constrained, zeros(n,1), cost, tol, 1, ...
             'minNetMILP', solveTime);
         if isempty(reacInd) || (~isempty(stat) && stat ~= 1 && stat ~= 3)
             failedIDs{end+1,1} = usable(k).id; %#ok<AGROW>
@@ -207,6 +229,28 @@ if ~isempty(skipped)
         numel(skipped));
 end
 result.summary = strjoin(lines, newline);
+end
+
+
+function cost = applyWeights(cost, rxns, weights, strict)
+% Overrides the cost of the reactions the caller named.
+%
+% Applied after the draft and freeRxns rather than before, because the
+% caller's own weight is the more specific statement: saying a reaction
+% costs 0.2 and having it silently read 0 because the draft already has it
+% would make the argument useless where it is most wanted.
+for i = 1:numel(weights)
+    at = find(strcmp(rxns, weights(i).rxn), 1);
+    if isempty(at)
+        if strict
+            error('gapfillForTasks:unknownWeight', ...
+                ['No reaction ''%s'' in the universal model, so it cannot ' ...
+                 'be weighted.'], weights(i).rxn);
+        end
+        continue
+    end
+    cost(at) = weights(i).weight;
+end
 end
 
 

@@ -98,3 +98,59 @@ withImpossible = [tasks; impossible];
 filled2 = gapfillForTasks(taskDraft, universal, withImpossible, 1e-3);
 assert(ismember('impossible', filled2.skipped), ...
     'a task the universal model cannot perform should have been skipped');
+
+%% a weight steers which of two equivalent repairs is chosen
+% ENO is the only way through, but the draft is missing a second reaction
+% the gap-fill can close two ways. Pricing one route out must send the
+% fill down the other: that is how sequence evidence enters a gap-fill.
+% Here the choice is between taking up acetate and taking up succinate,
+% both of which feed the same medium.
+twoWays = struct('label', {'two ways in'}, ...
+    'rxns', {[SALTS, {'EX_ac(e)', 'EX_succ(e)'}]}, ...
+    'lb', {[-1000*ones(1,numel(SALTS)), -10, -10]});
+noUptake = removeRxns(universal, {'ACt2r', 'SUCCt2_2'}, 'metFlag', false);
+
+cheap = gapfillForGrowth(noUptake, universal, twoWays, 0.1, biomass, ...
+    1e-4, 'minNetMILP', {}, 300, 1, ...
+    struct('rxn', {'ACt2r'}, 'weight', {1000}));
+assert(~ismember('ACt2r', cheap.added), ...
+    ['the fill took the transport that was priced out of reach; it added ' ...
+     '%s'], strjoin(cheap.added', ', '));
+assert(isempty(cheap.unsatisfied), ...
+    'the priced gap-fill no longer grows, so the weight broke it');
+
+%% a weight naming a reaction the universal model lacks is refused
+caught = false;
+try
+    gapfillForGrowth(draft, universal, media, 0.1, biomass, 1e-4, ...
+        'minNetMILP', {}, 300, [], struct('rxn', {'nosuch'}, 'weight', {1}));
+catch err
+    caught = strcmp(err.identifier, 'gapfillForGrowth:unknownWeight');
+end
+assert(caught, 'a weight on a reaction that does not exist was accepted');
+
+%% something that is not a weight struct is refused
+caught = false;
+try
+    gapfillForGrowth(draft, universal, media, 0.1, biomass, 1e-4, ...
+        'minNetMILP', {}, 300, [], ones(numel(universal.rxns),1));
+catch err
+    caught = strcmp(err.identifier, 'gapfillForGrowth:badWeights');
+end
+assert(caught, 'a bare vector was accepted where a weight struct belongs');
+
+%% gapfillForTasks takes weights in the same shape
+weighted = gapfillForTasks(taskDraft, universal, tasks, 1e-3, 'minNetMILP', ...
+    {}, 300, 1, {}, true, true, struct('rxn', {'CYTBD'}, 'weight', {1000}));
+assert(isempty(weighted.unsatisfied), ...
+    'the weighted task gap-fill no longer performs every task: %s', ...
+    strjoin(weighted.unsatisfied', ', '));
+
+caught = false;
+try
+    gapfillForTasks(taskDraft, universal, tasks, 1e-3, 'minNetMILP', {}, ...
+        300, [], {}, true, true, struct('rxn', {'nosuch'}, 'weight', {1}));
+catch err
+    caught = strcmp(err.identifier, 'gapfillForTasks:unknownWeight');
+end
+assert(caught, 'a weight on a reaction that does not exist was accepted');
