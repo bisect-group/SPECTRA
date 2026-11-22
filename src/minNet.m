@@ -1,6 +1,6 @@
-function [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadyState,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff)
+function [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadyState,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
 % USAGE:
-%   [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff)
+%   [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
 %
 % INPUTS:
 %     model:       COBRA model structure.
@@ -40,6 +40,17 @@ function [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadySt
 %                  (Default: one binary per free reaction)
 %     inclusionCutoff: The absolute flux at which a reaction counts as used.
 %                  (Default: tol*1e-7)
+%     solverTol:   The feasibility, optimality and integrality tolerances to
+%                  solve the MILP at. Asked of the solve itself rather than
+%                  set globally, so nothing outside this call moves. The
+%                  integrality tolerance is the one that matters: a binary
+%                  sitting at it and still counted as zero permits a flux of
+%                  solverTol*ub, which at a solver's usual 1e-5 and the
+%                  usual bound of 1000 is 0.01 - far above inclusionCutoff,
+%                  so reactions the solver switched off would read as
+%                  carrying flux and be kept. Loosen it only for a large
+%                  problem that will not converge. (Default: 1e-9, the
+%                  tightest the solvers accept)
 %
 % OUTPUTS:
 %     reacInd: Reaction IDs corresponding to reactions that has to be
@@ -67,6 +78,9 @@ if ~exist('indicatorGroups', 'var')
 end
 if ~exist('inclusionCutoff', 'var') || isempty(inclusionCutoff)
     inclusionCutoff = tol*1e-7;
+end
+if ~exist('solverTol', 'var')
+    solverTol = [];
 end
 selected = [];
 
@@ -209,9 +223,6 @@ elseif strcmp(probType,'minNetMILP')
     MILPproblem.osense=1; % minimise
     MILPproblem.vartype = [repmat('C',n,1);repmat('B',nGroups,1)];
     MILPproblem.csense = [csenseeq; csenseineq1; csenseineq2;csenseineq3; csensecpl];
-    changeCobraSolverParams('MILP', 'feasTol', 1e-9);
-    fprintf(['minNet: MILP feasTol set to 1e-9. This is a global COBRA ' ...
-             'setting and stays in effect after this function returns.\n']);
     if exist('x0', 'var')&&~isempty(x0)
         warm = false(nGroups,1);
         on = false(n,1);
@@ -219,7 +230,8 @@ elseif strcmp(probType,'minNetMILP')
         warm(groupOf(governed(on(governed)))) = true;
         MILPproblem.x0  = [x0;double(warm)];
     end
-    solution = solveCobraMILP(MILPproblem,'timeLimit', solveTime);
+    tolParams = milpTolerances(solverTol);
+    solution = solveCobraMILP(MILPproblem,'timeLimit', solveTime, tolParams{:});
     stat =solution.stat;
     if stat==1||stat==3
         x = solution.cont;

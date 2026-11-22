@@ -74,6 +74,14 @@ function result = minimalReactome(model, varargin)
 %                       (Default: 7200)
 %    inclusionCutoff:   The absolute flux at which a reaction is kept
 %                       whatever its binary says. (Default: tol*1e-7)
+%    solverTol:         Feasibility, optimality and integrality tolerances
+%                       for the mixed-integer solve. Loosen it only for a
+%                       problem that will not converge: a loose integrality
+%                       tolerance lets a binary the solver switched off
+%                       still permit a flux of solverTol*ub, which is how
+%                       reactions that are not really in the answer get
+%                       counted as kept. (Default: 1e-9, the tightest the
+%                       solvers accept)
 %    seed:              Seed for the consistency check's random
 %                       coefficients, making preprocessing reproducible.
 %                       (Default: none)
@@ -183,6 +191,7 @@ parser.addParameter('preprocess', true, @(x) islogical(x) || isnumeric(x));
 parser.addParameter('nSol', 1, @isnumeric);
 parser.addParameter('solveTime', 7200, @isnumeric);
 parser.addParameter('inclusionCutoff', [], @isnumeric);
+parser.addParameter('solverTol', [], @isnumeric);
 parser.addParameter('seed', [], @isnumeric);
 parser.addParameter('check', true, @(x) islogical(x) || isnumeric(x));
 parser.parse(varargin{:});
@@ -334,7 +343,8 @@ prevSols = {};
 solutions = cell(0, 1);
 for s = 1:opt.nSol
     [reacInd, ~, stat, selected] = minNet(joint, direction, costs, tol, 1, ...
-        'minNetMILP', opt.solveTime, [], prevSols, groups, inclusionCutoff);
+        'minNetMILP', opt.solveTime, [], prevSols, groups, inclusionCutoff, ...
+        opt.solverTol);
     if stat ~= 1 && stat ~= 3
         if s == 1
             error('minimalReactome:infeasible', ...

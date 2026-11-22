@@ -1,6 +1,6 @@
-function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff)
+function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol)
 % USAGE:
-%   [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff)
+%   [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol)
 %
 % INPUTS:
 %   model:    COBRA model structure. The model has to be a consistent model
@@ -45,6 +45,11 @@ function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,n
 %                 per free reaction)
 %   inclusionCutoff: Absolute flux at which a reaction counts as included.
 %                 Handed to the formulation. (Default: its own, tol*1e-7)
+%   solverTol:    Feasibility, optimality and integrality tolerances for the
+%                 mixed-integer solve, asked of the solve itself rather than
+%                 set globally. Loosen it only for a large problem that will
+%                 not converge, and read inclusionCutoff's note before you
+%                 do. (Default: 1e-9, the tightest the solvers accept)
 %
 % OUTPUTS:
 %   Model:     The consistent model with no blocked reactions and has
@@ -99,6 +104,9 @@ if ~exist('indicatorGroups', 'var')
 end
 if ~exist('inclusionCutoff', 'var')
     inclusionCutoff = [];
+end
+if ~exist('solverTol', 'var')
+    solverTol = [];
 end
 
 [~,n] = size(model.S);
@@ -178,7 +186,7 @@ if strcmp(probType,'minNetMILP')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff);
+    [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol);
 elseif strcmp(probType,'minNetLP')
     LPS = LPS+1;
     [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
@@ -196,7 +204,7 @@ elseif strcmp(probType,'tradeOff')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff);
+    [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol);
 end
 
 flux = x(1:numel(model.rxns));
@@ -262,7 +270,7 @@ if nSol>1
                     sol = optimizeCbModel(model);
                     flux = sol.x;
                 end
-                [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,{},indicatorGroups,inclusionCutoff);
+                [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol);
             elseif strcmp(probType,'minNetLP')
                 LPS_ = LPS_+1;
                 [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
@@ -280,7 +288,7 @@ if nSol>1
                     sol = optimizeCbModel(model);
                     flux = sol.x;
                 end
-                [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,{},indicatorGroups,inclusionCutoff);
+                [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol);
             end
     
             flux = x(1:numel(model.rxns));
@@ -299,9 +307,9 @@ if nSol>1
                 prevSols = [prevSols;{find(selected)}];
             end
             if strcmp(probType,'minNetMILP')
-                [reacInd,~,stat,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,[],prevSols,indicatorGroups,inclusionCutoff);
+                [reacInd,~,stat,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol);
             elseif strcmp(probType,'tradeOff')
-                [reacInd,~,stat,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,[],prevSols,indicatorGroups,inclusionCutoff);
+                [reacInd,~,stat,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol);
             end
             if stat~=1
                 break

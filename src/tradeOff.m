@@ -1,6 +1,6 @@
-function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadyState,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff)
+function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadyState,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
 % USAGE:
-%   [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadystate,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff)
+%   [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadystate,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
 %
 % INPUTS:
 %     model:       COBRA model structure.
@@ -39,6 +39,17 @@ function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steady
 %                  here only when you mean that all of them must work.
 %     inclusionCutoff: The absolute flux at which a reaction counts as used.
 %                  (Default: tol*1e-7)
+%     solverTol:   The feasibility, optimality and integrality tolerances to
+%                  solve the MILP at. Asked of the solve itself rather than
+%                  set globally, so nothing outside this call moves. The
+%                  integrality tolerance is the one that matters: a binary
+%                  sitting at it and still counted as zero permits a flux of
+%                  solverTol*ub, which at a solver's usual 1e-5 and the
+%                  usual bound of 1000 is 0.01 - far above inclusionCutoff,
+%                  so reactions the solver switched off would read as
+%                  carrying flux and be kept. Loosen it only for a large
+%                  problem that will not converge. (Default: 1e-9, the
+%                  tightest the solvers accept)
 %
 % OUTPUTS:
 %     reacInd: Reaction IDs corresponding to reactions that has to be
@@ -52,7 +63,7 @@ function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steady
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
 %
-% .. See also: minNet, resolveIndicatorGroups
+% .. See also: minNet, resolveIndicatorGroups, milpTolerances
 
 
 if ~exist('solveTime', 'var') || isempty(solveTime)
@@ -63,6 +74,9 @@ if ~exist('indicatorGroups', 'var')
 end
 if ~exist('inclusionCutoff', 'var') || isempty(inclusionCutoff)
     inclusionCutoff = tol*1e-7;
+end
+if ~exist('solverTol', 'var')
+    solverTol = [];
 end
 
 [m,n] = size(model.S);
@@ -186,9 +200,6 @@ MILPproblem.c=f;
 MILPproblem.osense=-1; % maximize
 MILPproblem.vartype = [repmat('C',n,1);repmat('B',nGroups+(2*n_rev),1)];
 MILPproblem.csense = [csenseeq1; csenseeq2; csenseineq1; csenseineq2; csenseineq3; csenseineq4; csenseineq5; csensecpl];
-changeCobraSolverParams('MILP', 'feasTol', 1e-9);
-fprintf(['tradeOff: MILP feasTol set to 1e-9. This is a global COBRA ' ...
-         'setting and stays in effect after this function returns.\n']);
 if exist('x0', 'var')&&~isempty(x0)
     warm = false(nGroups,1);
     on = false(n,1);
@@ -196,7 +207,8 @@ if exist('x0', 'var')&&~isempty(x0)
     warm(groupOf(governed & on)) = true;
     MILPproblem.x0  = [x0;double(warm);x0(govRev)>1e-12;x0(govRev)<-1e-12];
 end
-solution = solveCobraMILP(MILPproblem,'timeLimit', solveTime);
+tolParams = milpTolerances(solverTol);
+solution = solveCobraMILP(MILPproblem,'timeLimit', solveTime, tolParams{:});
 stat =solution.stat;
 if stat==1||stat==3
     x = solution.cont;
