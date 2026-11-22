@@ -82,6 +82,10 @@ function result = minimalReactome(model, varargin)
 %                       reactions that are not really in the answer get
 %                       counted as kept. (Default: 1e-9, the tightest the
 %                       solvers accept)
+%    useCoupling:       Whether to apply the model's coupling constraints,
+%                       the C, d and dsense fields. Off by default, so the
+%                       problem is built from S, lb and ub alone.
+%                       (Default: false)
 %    seed:              Seed for the consistency check's random
 %                       coefficients, making preprocessing reproducible.
 %                       (Default: none)
@@ -192,6 +196,7 @@ parser.addParameter('nSol', 1, @isnumeric);
 parser.addParameter('solveTime', 7200, @isnumeric);
 parser.addParameter('inclusionCutoff', [], @isnumeric);
 parser.addParameter('solverTol', [], @isnumeric);
+parser.addParameter('useCoupling', false, @(x) islogical(x) || isnumeric(x));
 parser.addParameter('seed', [], @isnumeric);
 parser.addParameter('check', true, @(x) islogical(x) || isnumeric(x));
 parser.parse(varargin{:});
@@ -338,13 +343,13 @@ fprintf(['minimalReactome: minimising %d reactions over %d condition(s) ' ...
     numel(joint.rxns), numel(joint.mets), numel(core));
 
 %% solve, and again for each alternative asked for
-direction = settleDirections(joint, core, tol);
+direction = settleDirections(joint, core, tol, opt.useCoupling);
 prevSols = {};
 solutions = cell(0, 1);
 for s = 1:opt.nSol
     [reacInd, ~, stat, selected] = minNet(joint, direction, costs, tol, 1, ...
         'minNetMILP', opt.solveTime, [], prevSols, groups, inclusionCutoff, ...
-        opt.solverTol);
+        opt.solverTol, opt.useCoupling);
     if stat ~= 1 && stat ~= 3
         if s == 1
             error('minimalReactome:infeasible', ...
@@ -968,7 +973,7 @@ out = lines{1};
 end
 
 
-function direction = settleDirections(model, core, tol)
+function direction = settleDirections(model, core, tol, useCoupling)
 % Settles which way each forced reaction should carry its flux.
 %
 % A reaction that must carry at least tol has to be told which sign that
@@ -991,7 +996,7 @@ stalls = 0;
 
 while any(remaining)
     before = sum(remaining);
-    flux1 = forward(model, remaining, tol, 1);
+    flux1 = forward(model, remaining, tol, 1, useCoupling);
     assertForcedFeasible(flux1, sum(isCore), tol);
     if sum(abs(flux)) == 0
         flux = flux1;
@@ -1003,7 +1008,7 @@ while any(remaining)
     if ~any(remaining)
         break
     end
-    flux2 = reverse(model, remaining, tol, 1);
+    flux2 = reverse(model, remaining, tol, 1, useCoupling);
     assertForcedFeasible(flux2, sum(isCore), tol);
     c1 = unifrnd(0.45, 0.55, 1);
     flux = (c1 * flux) + ((1 - c1) * flux2);

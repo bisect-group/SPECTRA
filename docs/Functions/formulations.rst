@@ -11,11 +11,29 @@ Each formulation builds its own solver problem out of ``model.S``, so a
 constraint that is not in ``S`` is not in the problem unless it is put
 there. ``couplingRows`` is what puts it there: it reads a model's coupling
 constraints -- the ``C``, ``d`` and ``dsense`` fields that
-``coupleRxnList2Rxn`` writes and ``optimizeCbModel`` honours -- and returns
-them as rows of the problem, padded to its width. A community model ties
-each unit's reactions to its own anchor through ``C``, so an extraction
-that ignored it would be free to run a unit's metabolism while the unit is
-not growing. A model with no such fields gives no rows and is unaffected.
+``coupleRxnList2Rxn`` writes -- and returns them as rows of the problem,
+padded to its width.
+
+It is **off by default**, and every routine here takes a ``useCoupling``
+argument to turn it on. Flux consistency, and the extractions built on it,
+are conventionally defined over the stoichiometry alone: that is what
+fastcc, FASTCORE, FASTERCC and swiftcore all answer, and a comparison
+against them has to answer the same question. A coupling constraint is a
+modelling device rather than stoichiometry, so a reaction blocked only by
+one is not blocked in the network -- it is blocked in that
+parameterisation.
+
+Switch it on when the parameterisation is the point. A community model ties
+each unit's reactions to its own anchor through ``C``, and an extraction
+ignoring that is free to run a unit's metabolism while the unit is not
+growing, which is the whole thing the coupling forbids; ``gapfillCommunity``
+and ``minimalMicrobiome`` therefore ask for it. Switch it on, too, whenever
+the answer has to agree with ``optimizeCbModel`` on the same model, since
+that honours ``C`` always. On a toy community whose consumer cannot grow,
+FBA puts a transport's range at ``[-0.01, 0]`` while a check ignoring ``C``
+reports it able to carry 0.1.
+
+A model with no such fields gives no rows either way.
 
 The mixed-integer formulations hand their tolerances to the solve rather
 than setting them globally, which ``milpTolerances`` assembles. The

@@ -1,6 +1,6 @@
-function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadyState,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
+function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadyState,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
 % USAGE:
-%   [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadystate,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
+%   [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadystate,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
 %
 % INPUTS:
 %     model:       COBRA model structure.
@@ -50,6 +50,14 @@ function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steady
 %                  carrying flux and be kept. Loosen it only for a large
 %                  problem that will not converge. (Default: 1e-9, the
 %                  tightest the solvers accept)
+%     useCoupling: Whether to apply the model's coupling constraints (the
+%                  C, d and dsense fields coupleRxnList2Rxn writes). Off by
+%                  default, so the problem is built from S, lb and ub alone,
+%                  which is how flux consistency is conventionally defined
+%                  and what a comparison against fastcc or FASTERCC has to
+%                  answer. Switch it on when the parameterisation is the
+%                  point, as a community model's coupling is.
+%                  (Default: false)
 %
 % OUTPUTS:
 %     reacInd: Reaction IDs corresponding to reactions that has to be
@@ -77,6 +85,9 @@ if ~exist('inclusionCutoff', 'var') || isempty(inclusionCutoff)
 end
 if ~exist('solverTol', 'var')
     solverTol = [];
+end
+if ~exist('useCoupling', 'var') || isempty(useCoupling)
+    useCoupling = false;
 end
 
 [m,n] = size(model.S);
@@ -189,7 +200,7 @@ ub(direction==-1)=-tol*ones(sum(direction==-1),1);
 ub = [ub;ones(nGroups+(2*n_rev),1)];
 
 % coupling constraints, where the model has any
-[Acpl,bcpl,csensecpl] = couplingRows(model,nGroups+(2*n_rev));
+[Acpl,bcpl,csensecpl] = couplingRows(model,nGroups+(2*n_rev),useCoupling);
 
 % Set up MILP problem
 MILPproblem.A=[Aeq1;Aeq2;Aineq1;Aineq2;Aineq3;Aineq4;Aineq5;Acpl];

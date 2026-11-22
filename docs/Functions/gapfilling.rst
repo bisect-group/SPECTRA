@@ -12,7 +12,9 @@ particular reactions against that default, which is where sequence evidence
 goes: a reaction the organism's genome supports should cost less than one
 it does not, so the fill prefers it.
 
-``gapfillCommunity`` does the same for every unit of a community at once.
+``gapfillCommunity`` does the same for every unit of a community at once,
+with the biomass coupling applied -- a database reaction that can only
+carry flux by ignoring the coupling is not a candidate.
 Filling them together rather than one at a time lets a gap in one be closed
 by another's secretion instead of by a new reaction, which is why the joint
 result is the smaller one -- often by the whole of what a unit would

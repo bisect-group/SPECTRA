@@ -1,4 +1,4 @@
-function [flux,z] = forward(model,core,tol,steadyState)
+function [flux,z] = forward(model,core,tol,steadyState,useCoupling)
 % USAGE:
 %   [flux,z] = forward(model,core,tol,steadyState)
 %
@@ -50,7 +50,8 @@ lb = [lb;-Inf(n_rev_core,1)];
 ub = [ub; tol*ones(n_rev_core,1)];
 
 % coupling constraints, where the model has any
-[Acpl,bcpl,csensecpl] = couplingRows(model,n_rev_core);
+if ~exist('useCoupling','var'); useCoupling = false; end
+[Acpl,bcpl,csensecpl] = couplingRows(model,n_rev_core,useCoupling);
 
 % Set up LP problem
 LPproblem.A=[Aeq;Aineq;Acpl];

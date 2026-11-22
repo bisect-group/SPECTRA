@@ -156,6 +156,8 @@ An organism's anchor can survive in the reduced model on a trace of flux while i
 
 What makes an absent organism truly absent is the biomass coupling that buildCommunityModel applies: an organism whose anchor cannot grow has every one of its reactions pinned to couplingThreshold, so it cannot go on feeding the rest as a ghost. Build the community with 'couple' false and minimalMicrobiome will say so.
 
+The formulations leave coupling constraints out by default, because flux consistency is conventionally defined over the stoichiometry alone and a comparison against fastcc or FASTERCC has to answer that question. minimalMicrobiome turns them on, and has no choice: switching an organism's binary off has to stop the organism, and the coupling is the only thing that says so.
+
 ```
 present = {result.membership([result.membership.present]).name};
 fprintf('present: %s\n', strjoin(sort(present), ', '));

@@ -1,6 +1,6 @@
-function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed)
+function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed,useCoupling)
 % USAGE: 
-%   [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed)
+%   [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed,useCoupling)
 %
 % INPUTS:
 %     model:    COBRA model structure.
@@ -29,6 +29,16 @@ function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,w
 %                   reproducible across runs. Leave it out to draw them
 %                   unseeded, as every earlier version of this function did.
 %                   (Default: none)
+%     useCoupling:  Whether to apply the model's coupling constraints (the C, d
+%                   and dsense fields that coupleRxnList2Rxn writes). Off by
+%                   default: flux consistency and the extractions built on it are
+%                   conventionally defined over the stoichiometry alone, which is
+%                   what fastcc, FASTCORE and FASTERCC answer and what a comparison
+%                   against them has to answer too. Switch it on when the
+%                   parameterisation is the point - a community model, where a unit
+%                   that cannot grow must not be able to run its metabolism either -
+%                   or when the answer has to agree with optimizeCbModel on the same
+%                   model, since that honours C always. (Default: false)
 %
 % OUTPUTS:
 %     Model:           The consistent model (If nSol ==1). A cell
@@ -53,6 +63,9 @@ if ~exist('probType', 'var') || isempty(probType)
 end
 if ~exist('remGene', 'var') || isempty(remGene)
     remGene=0;  
+end
+if ~exist('useCoupling', 'var') || isempty(useCoupling)
+    useCoupling = false;
 end
 if ~exist('consType', 'var') || isempty(consType)
     consType='stoichiometry';
@@ -102,7 +115,7 @@ while sum(temp_core)~=sum(prev_rxns)
     LPs = LPs+2;
     prev_rxns = temp_core;
     % maximizing number of reactions with forward flux
-    [flux1,~] = forwardcc(model,temp_core,tol,steadystate);
+    [flux1,~] = forwardcc(model,temp_core,tol,steadystate,useCoupling);
     temp_core(abs(flux1)>=tol*0.99)=false;
     if sum(abs(flux))==0
         flux = flux1;
@@ -111,7 +124,7 @@ while sum(temp_core)~=sum(prev_rxns)
         flux = (c1*flux)+((1-c1)*flux1);
     end
     % maximizing number of reactions with reverse flux
-    [flux2,~] = reverse(model,temp_core,tol,steadystate);
+    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
     temp_core(abs(flux2)>=tol*0.99)=false;
     
     c1=round(unifrnd(0.45,0.55,1),4);
@@ -173,7 +186,7 @@ if nSol>1
     [~,id] = ismember(Nmodel.rxns,model.rxns);
     weights2 = weights(id);
     reacInd2 = find(ismember(Nmodel.rxns,model.rxns(reacInd)));
-    Models = spectraME(Nmodel,core2,tol,consType,weights2,nSol-1,altSolMethod,probType,solveTime,remGene,{reacInd2});
+    Models = spectraME(Nmodel,core2,tol,consType,weights2,nSol-1,altSolMethod,probType,solveTime,remGene,{reacInd2},[],{},[],[],useCoupling);
     Model=[Models;Model];
 end
 end

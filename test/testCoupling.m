@@ -1,11 +1,14 @@
-% Tests that the formulations honour a model's coupling constraints.
+% Tests that the formulations honour a model's coupling constraints when
+% they are asked to, and leave them out when they are not.
 %
 % Every formulation builds its own problem out of model.S, so a constraint
-% that lives in model.C is not in the problem unless it is put there. A
-% community model ties each unit's reactions to its own anchor through C,
-% and an extraction that ignored C would be free to run a unit's metabolism
-% while the unit is not growing -- which is exactly what the coupling is
-% there to forbid.
+% that lives in model.C is not in the problem unless it is put there. It is
+% left out by default, because flux consistency and the extractions built on
+% it are conventionally defined over the stoichiometry alone, which is what
+% a comparison against fastcc or FASTERCC has to answer too. Switching it on
+% is for when the parameterisation is the point: a community model ties each
+% unit's reactions to its own anchor through C, and an extraction ignoring it
+% is free to run a unit's metabolism while the unit is not growing.
 %
 % Run through runSpectraTests, which sets the solver and reports.
 
@@ -25,8 +28,17 @@ assert(isfield(shut, 'C') && size(shut.C, 1) > 0, ...
     'the community was built without coupling, so there is nothing to test');
 assert(size(shut.C, 2) == n, 'model.C does not have one column per reaction');
 
-%% couplingRows returns the constraints, padded to the problem's width
-[A, b, csense] = couplingRows(shut, 7);
+%% by default the constraints are left out entirely
+[off, offB, offSense] = couplingRows(shut, 7);
+assert(isempty(off) && size(off, 2) == n + 7, ...
+    'couplingRows returned constraints without being asked for them');
+assert(isempty(offB) && isempty(offSense), ...
+    'couplingRows returned a right-hand side without being asked');
+assert(isequal(couplingRows(shut, 7), couplingRows(shut, 7, false)), ...
+    'the default is not the same as asking for no coupling');
+
+%% asked for, it returns the constraints padded to the problem's width
+[A, b, csense] = couplingRows(shut, 7, true);
 assert(size(A, 1) == size(shut.C, 1), 'couplingRows lost a constraint');
 assert(size(A, 2) == n + 7, 'couplingRows did not pad to the problem width');
 assert(all(all(A(:, 1:n) == shut.C)), 'couplingRows changed the constraints');
@@ -35,8 +47,8 @@ assert(all(A(:, n+1:end) == 0, 'all'), ...
 assert(numel(b) == size(A, 1) && numel(csense) == size(A, 1), ...
     'couplingRows returned a right-hand side of the wrong length');
 
-%% a model with no coupling gives no rows, so nothing else changes
-[none, noneB] = couplingRows(loose, 3);
+%% a model with no coupling gives no rows even when asked
+[none, noneB] = couplingRows(loose, 3, true);
 assert(isempty(none) && size(none, 2) == n + 3, ...
     'a model without coupling was given constraints');
 assert(isempty(noneB), 'a model without coupling was given a right-hand side');
@@ -44,11 +56,11 @@ assert(isempty(noneB), 'a model without coupling was given a right-hand side');
 %% an unusable C is refused rather than silently misread
 broken = shut;
 broken.C = broken.C(:, 1:end-1);
-assertCouplingFails(@() couplingRows(broken, 0), 'columns', ...
+assertCouplingFails(@() couplingRows(broken, 0, true), 'columns', ...
     'a C of the wrong width was accepted');
 broken = shut;
 broken = rmfield(broken, 'dsense');
-assertCouplingFails(@() couplingRows(broken, 0), 'dsense', ...
+assertCouplingFails(@() couplingRows(broken, 0, true), 'dsense', ...
     'a C without a dsense was accepted');
 
 %% the extraction refuses to force flux through a unit that cannot grow
@@ -58,9 +70,17 @@ assertCouplingFails(@() couplingRows(broken, 0), 'dsense', ...
 % than keep trying.
 core = findRxnIDs(shut, 'TR_ac_u__C');
 assertCouplingFails(@() spectraME(shut, core, 0.1, 'stoichiometry', ...
-    ones(n, 1), 1, 'coreDirection', 'minNetMILP', 30, false, {}, 1), ...
-    'core reactions', ...
+    ones(n, 1), 1, 'coreDirection', 'minNetMILP', 30, false, {}, 1, {}, ...
+    [], [], true), 'core reactions', ...
     'the extraction forced flux through a unit the coupling has pinned');
+
+%% left to itself the same extraction ignores the coupling and succeeds
+% This is the default, and the reason it is the default: the question
+% 'which reactions can carry flux in this network' is about the network.
+asStands = spectraME(shut, core, 0.1, 'stoichiometry', ones(n, 1), 1, ...
+    'coreDirection', 'minNetMILP', 30, false, {}, 1);
+assert(ismember('TR_ac_u__C', asStands.rxns), ...
+    'the default extraction took the coupling into account uninvited');
 
 %% the same problem without the coupling is solvable, so the test bites
 % If this failed for some other reason the check above would prove nothing.
@@ -74,8 +94,12 @@ assert(ismember('TR_ac_u__C', extracted.rxns), ...
 %% the consistency check honours them too
 % TR_ac_u__C can carry 0.01, which is under the threshold, so with the
 % coupling in force it reads as blocked and without it does not.
-withCoupling = spectraCC(shut, 0.1, 'stoichiometry');
+withCoupling = spectraCC(shut, 0.1, 'stoichiometry', [], [], true);
 without = spectraCC(loose, 0.1, 'stoichiometry');
+%% and by default it reads the same as a model with no coupling at all
+assert(isequal(spectraCC(shut, 0.1, 'stoichiometry'), without), ...
+    ['spectraCC took the coupling into account uninvited, so it no longer ' ...
+     'answers the question fastcc and FASTERCC answer']);
 assert(~ismember(core, withCoupling), ...
     'spectraCC called a coupling-pinned reaction consistent');
 assert(ismember(findRxnIDs(loose, 'TR_ac_u__C'), without), ...
@@ -97,13 +121,13 @@ oneWay.ub(reversible) = 0;      % reverse only, so the extraction reorients it
 
 forced = addCOBRAConstraints(oneWay, ecoli.rxns(reversible), 0.5, ...
     'c', 1, 'dsense', 'G', 'ConstraintID', 'forceForward');
-assert(isempty(spectraCC(forced, 1e-4, 'stoichiometry')), ...
+assert(isempty(spectraCC(forced, 1e-4, 'stoichiometry', [], [], true)), ...
     ['a constraint written over a reaction the check reorients was ' ...
      'reversed, so a flux the bounds forbid looked achievable']);
 
 % The same model without the constraint is perfectly workable, so the
 % check above is the constraint and not the bounds.
-assert(~isempty(spectraCC(oneWay, 1e-4, 'stoichiometry')), ...
+assert(~isempty(spectraCC(oneWay, 1e-4, 'stoichiometry', [], [], true)), ...
     'the fixture is unworkable for some reason other than the constraint');
 
 

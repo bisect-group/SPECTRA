@@ -170,7 +170,9 @@ end
 
 ## A caution about coupling
 
-buildCommunityModel ties each unit's reactions to its own anchor, and every formulation in SPECTRA honours that coupling. A unit whose anchor cannot carry flux therefore has every one of its reactions pinned to couplingThreshold, which is 0.01 by default. If a fill comes back refusing to force flux through a unit, look at couplingSummary before looking at the formulation.
+buildCommunityModel ties each unit's reactions to its own anchor, and gapfillCommunity asks the formulations to apply that coupling. It is not their default: flux consistency and the extractions built on it are conventionally defined over the stoichiometry alone, which is what a comparison against fastcc or FASTERCC has to answer, so couplingRows is off unless a caller passes useCoupling. Here the parameterisation is exactly the point, so it is on.
+
+The consequence to know about is that a unit whose anchor cannot carry flux has every one of its reactions pinned to couplingThreshold, which is 0.01 by default. If a fill comes back refusing to force flux through a unit, look at couplingSummary before looking at the formulation.
 
 ```
 % disp(couplingSummary(community))

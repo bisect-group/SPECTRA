@@ -1,4 +1,4 @@
-function [reacInd,x,stat] = growthOptim(model,direction,weights,tol,steadyState)
+function [reacInd,x,stat] = growthOptim(model,direction,weights,tol,steadyState,useCoupling)
 % USAGE:
 %   [reacInd,x,stat] = growthOptim(model,direction,weights,tol,steadyState)
 %
@@ -64,7 +64,8 @@ ub(direction==-1)=-tol*ones(sum(direction==-1),1);
 ub = [ub;Inf(n,1)];
 
 % coupling constraints, where the model has any
-[Acpl,bcpl,csensecpl] = couplingRows(model,n);
+if ~exist('useCoupling','var'); useCoupling = false; end
+[Acpl,bcpl,csensecpl] = couplingRows(model,n,useCoupling);
 
 % Set up LP problem
 LPproblem.A=[Aeq;Aineq1;Aineq2;Acpl];

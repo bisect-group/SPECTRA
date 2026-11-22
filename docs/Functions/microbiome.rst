@@ -15,7 +15,8 @@ organisms present. It runs through :doc:`extraction` with
 in the package, with a different objective pointed at a different thing.
 
 The biomass coupling built by ``buildCommunityModel`` is what makes an
-absent organism truly absent: an organism whose binary is off cannot grow,
+absent organism truly absent, and ``minimalMicrobiome`` is one of the two
+routines that asks the formulations to apply it rather than leaving it out: an organism whose binary is off cannot grow,
 and coupling then pins every one of its reactions to zero, so it cannot go
 on feeding the rest as a ghost. A community built without coupling is
 rejected in spirit if not in code, and says so.

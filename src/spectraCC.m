@@ -1,6 +1,6 @@
-function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff)
+function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff,useCoupling)
 % USAGE:
-% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff)
+% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff,useCoupling)
 %
 % INPUTS:
 %    model: COBRA model structure.
@@ -23,6 +23,16 @@ function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionC
 %                     fastcc does. It is last in the argument list so that
 %                     calls written against the earlier signature keep
 %                     working.
+%    useCoupling:     Whether to apply the model's coupling constraints (the C, d
+%                     and dsense fields that coupleRxnList2Rxn writes). Off by
+%                     default: flux consistency and the extractions built on it are
+%                     conventionally defined over the stoichiometry alone, which is
+%                     what fastcc, FASTCORE and FASTERCC answer and what a comparison
+%                     against them has to answer too. Switch it on when the
+%                     parameterisation is the point - a community model, where a unit
+%                     that cannot grow must not be able to run its metabolism either -
+%                     or when the answer has to agree with optimizeCbModel on the same
+%                     model, since that honours C always. (Default: false)
 %
 % OUTPUTS:
 %    ConsReacIDS: Reaction IDs corresponding to reactions in the input
@@ -40,6 +50,9 @@ if ~exist('consistencyType', 'var') || isempty(consistencyType)
 end
 if ~exist('detectionCutoff', 'var') || isempty(detectionCutoff)
     detectionCutoff = 0.99*tol;
+end
+if ~exist('useCoupling', 'var') || isempty(useCoupling)
+    useCoupling = false;
 end
 % Seeding is opt-in. Without a seed the objective coefficients are drawn
 % exactly as before, so published results stay reproducible.
@@ -79,9 +92,9 @@ end
 while sum(temp_core)~=sum(prev_rxns)
     prev_rxns = temp_core;
     LPS = LPS+2;
-    [flux1,~] = forwardcc(model,temp_core,tol,steadystate);
+    [flux1,~] = forwardcc(model,temp_core,tol,steadystate,useCoupling);
     temp_core(abs(flux1)>=detectionCutoff)=false;
-    [flux2,~] = reverse(model,temp_core,tol,steadystate);
+    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
     temp_core(abs(flux2)>=detectionCutoff)=false;
 end
 

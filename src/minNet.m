@@ -1,6 +1,6 @@
-function [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadyState,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
+function [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadyState,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
 % USAGE:
-%   [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol)
+%   [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
 %
 % INPUTS:
 %     model:       COBRA model structure.
@@ -51,6 +51,14 @@ function [reacInd,x,stat,selected] = minNet(model,direction,weights,tol,steadySt
 %                  carrying flux and be kept. Loosen it only for a large
 %                  problem that will not converge. (Default: 1e-9, the
 %                  tightest the solvers accept)
+%     useCoupling: Whether to apply the model's coupling constraints (the
+%                  C, d and dsense fields coupleRxnList2Rxn writes). Off by
+%                  default, so the problem is built from S, lb and ub alone,
+%                  which is how flux consistency is conventionally defined
+%                  and what a comparison against fastcc or FASTERCC has to
+%                  answer. Switch it on when the parameterisation is the
+%                  point, as a community model's coupling is.
+%                  (Default: false)
 %
 % OUTPUTS:
 %     reacInd: Reaction IDs corresponding to reactions that has to be
@@ -81,6 +89,9 @@ if ~exist('inclusionCutoff', 'var') || isempty(inclusionCutoff)
 end
 if ~exist('solverTol', 'var')
     solverTol = [];
+end
+if ~exist('useCoupling', 'var') || isempty(useCoupling)
+    useCoupling = false;
 end
 selected = [];
 
@@ -124,7 +135,7 @@ if strcmp(probType,'minNetLP')
     ub = [ub;Inf(n_,1)];
 
     % coupling constraints, where the model has any
-    [Acpl,bcpl,csensecpl] = couplingRows(model,n_);
+    [Acpl,bcpl,csensecpl] = couplingRows(model,n_,useCoupling);
 
     % Set up LP problem
     LPproblem.A=[Aeq;Aineq1;Aineq2;Acpl];
@@ -212,7 +223,7 @@ elseif strcmp(probType,'minNetMILP')
     ub = [ub;ones(nGroups,1)];
 
     % coupling constraints, where the model has any
-    [Acpl,bcpl,csensecpl] = couplingRows(model,nGroups);
+    [Acpl,bcpl,csensecpl] = couplingRows(model,nGroups,useCoupling);
 
     % Set up MILP problem
     MILPproblem.A=[Aeq;Aineq1;Aineq2;Aineq3;Acpl];
@@ -266,7 +277,7 @@ elseif strcmp(probType,'minNetDC')
 
     % Set up MILP problem
     % coupling constraints, where the model has any
-    [Acpl,bcpl,csensecpl] = couplingRows(model,0);
+    [Acpl,bcpl,csensecpl] = couplingRows(model,0,useCoupling);
 
     DCproblem.A=[Aeq;Acpl];
     DCproblem.b=[beq;bcpl];

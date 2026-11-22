@@ -177,8 +177,12 @@ costOf = communityWeights(community, exchangeWeight, opt.weights);
 working = community;
 blockedCore = cell(0, 1);
 if opt.consistencyCheck
+    % With coupling, because a community's whole point is that a unit
+    % which cannot grow cannot run its metabolism either. A database
+    % reaction that can only carry flux by ignoring that is not a
+    % candidate.
     consistent = spectraCC(model, tol, 'stoichiometry', opt.seed, ...
-        getCobraSolverParams('LP', 'feasTol'));
+        getCobraSolverParams('LP', 'feasTol'), true);
     keepIDs = model.rxns(consistent);
     fprintf(['gapfillCommunity: %d of %d reactions can carry flux in this ' ...
              'community.\n'], numel(keepIDs), numel(model.rxns));
@@ -213,7 +217,7 @@ fprintf(['gapfillCommunity: filling %d units with %s; %d candidate ' ...
         numel(core));
 filled = spectraME(working.model, findRxnIDs(working.model, core), tol, ...
     'stoichiometry', weights, 1, 'coreDirection', opt.probType, ...
-    opt.solveTime, false, {}, opt.seed, groups, []);
+    opt.solveTime, false, {}, opt.seed, groups, [], [], true);
 
 kept = filled.rxns;
 if opt.keepDraft

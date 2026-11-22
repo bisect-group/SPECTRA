@@ -195,9 +195,13 @@ candidates = anchors(~isRequired);
 if isempty(candidates)
     selectedRxns = anchors;
 else
+    % With coupling, and it is not optional here: an organism whose binary
+    % is off must be unable to carry flux anywhere, and the coupling is the
+    % only thing that says so. The growth and production requirements this
+    % call has to respect are coupling constraints too.
     [~, ~, selection] = spectraME(constrained, [], tol, 'stoichiometry', ...
         weights, 1, 'coreDirection', 'minNetMILP', opt.solveTime, false, ...
-        {}, opt.seed, candidates, []);
+        {}, opt.seed, candidates, [], [], true);
     if isempty(selection)
         error('minimalMicrobiome:noSelection', ...
             ['The mixed-integer solve returned no membership. It was most ' ...

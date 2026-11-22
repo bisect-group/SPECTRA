@@ -1,6 +1,6 @@
-function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol)
+function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
 % USAGE:
-%   [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol)
+%   [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
 %
 % INPUTS:
 %   model:    COBRA model structure. The model has to be a consistent model
@@ -50,6 +50,14 @@ function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,n
 %                 set globally. Loosen it only for a large problem that will
 %                 not converge, and read inclusionCutoff's note before you
 %                 do. (Default: 1e-9, the tightest the solvers accept)
+%   useCoupling:  Whether to apply the model's coupling constraints (the C,
+%                 d and dsense fields coupleRxnList2Rxn writes). Off by
+%                 default, so the problem is built from S, lb and ub alone,
+%                 which is how flux consistency is conventionally defined
+%                 and what a comparison against fastcc or FASTERCC has to
+%                 answer. Switch it on when the parameterisation is the
+%                 point, as a community model's coupling is: gapfillCommunity
+%                 and minimalMicrobiome both do. (Default: false)
 %
 % OUTPUTS:
 %   Model:     The consistent model with no blocked reactions and has
@@ -108,6 +116,9 @@ end
 if ~exist('solverTol', 'var')
     solverTol = [];
 end
+if ~exist('useCoupling', 'var') || isempty(useCoupling)
+    useCoupling = false;
+end
 
 [~,n] = size(model.S);
 coreRxns = ismember(1:n,coreRxns)';
@@ -149,7 +160,7 @@ stalls = 0;
 while any(temp_core)
     before = sum(temp_core);
     LPS = LPS+1;
-    [flux1,~] = forward(model,temp_core,tol,steadystate);
+    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling);
     assertCoreFeasible(flux1,sum(coreRxns),tol);
     if sum(abs(flux))==0
         flux = flux1;
@@ -162,7 +173,7 @@ while any(temp_core)
         break
     end
     LPS = LPS+1;
-    [flux2,~] = reverse(model,temp_core,tol,steadystate);
+    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
     assertCoreFeasible(flux2,sum(coreRxns),tol);
     c1=unifrnd(0.45,0.55,1);
     flux = (c1*flux)+((1-c1)*flux2);
@@ -186,14 +197,14 @@ if strcmp(probType,'minNetMILP')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol);
+    [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
 elseif strcmp(probType,'minNetLP')
     LPS = LPS+1;
     [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
 elseif strcmp(probType,'minNetDC')
     [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
 elseif strcmp(probType,'growthOptim')
-    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate);
+    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling);
 elseif strcmp(probType,'tradeOff')
     if ~exist('solveTime', 'var') || isempty(solveTime)
         solveTime=7200;     
@@ -204,7 +215,7 @@ elseif strcmp(probType,'tradeOff')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol);
+    [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
 end
 
 flux = x(1:numel(model.rxns));
@@ -228,9 +239,9 @@ if nSol>1
                 LPS_ = LPS_+1;
                 r = randi(2);
                 if r==1
-                    [flux1,~] = forward(model,temp_core,tol,steadystate);
+                    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling);
                 else
-                    [flux1,~] = reverse(model,temp_core,tol,steadystate);
+                    [flux1,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
                 end
                 assertCoreFeasible(flux1,sum(coreRxns),tol);
                 if sum(abs(flux))==0
@@ -245,9 +256,9 @@ if nSol>1
                 end
                 LPS_ = LPS_+1;
                 if r==1
-                    [flux2,~] = reverse(model,temp_core,tol,steadystate);
+                    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
                 else
-                    [flux2,~] = forward(model,temp_core,tol,steadystate);
+                    [flux2,~] = forward(model,temp_core,tol,steadystate,useCoupling);
                 end
                 assertCoreFeasible(flux2,sum(coreRxns),tol);
                 c1=unifrnd(0.45,0.55,1);
@@ -270,14 +281,14 @@ if nSol>1
                     sol = optimizeCbModel(model);
                     flux = sol.x;
                 end
-                [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol);
+                [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol,useCoupling);
             elseif strcmp(probType,'minNetLP')
                 LPS_ = LPS_+1;
                 [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
             elseif strcmp(probType,'minNetDC')
                 [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
             elseif strcmp(probType,'growthOptim')
-                [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate);
+                [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling);
             elseif strcmp(probType,'tradeOff')
                 if ~exist('solveTime', 'var') || isempty(solveTime)
                     solveTime=7200;
@@ -288,7 +299,7 @@ if nSol>1
                     sol = optimizeCbModel(model);
                     flux = sol.x;
                 end
-                [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol);
+                [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol,useCoupling);
             end
     
             flux = x(1:numel(model.rxns));
@@ -307,9 +318,9 @@ if nSol>1
                 prevSols = [prevSols;{find(selected)}];
             end
             if strcmp(probType,'minNetMILP')
-                [reacInd,~,stat,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol);
+                [reacInd,~,stat,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
             elseif strcmp(probType,'tradeOff')
-                [reacInd,~,stat,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol);
+                [reacInd,~,stat,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
             end
             if stat~=1
                 break
