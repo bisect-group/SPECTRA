@@ -12,7 +12,7 @@ import math
 import os
 import numpy as np
 import pandas as pd
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, mannwhitneyu
 
 import matplotlib
 matplotlib.use('Agg')
@@ -73,10 +73,10 @@ def plot_fig5c_from_metrics(df, out_pdf, out_png):
     sw_c = df['Swiftcore_hall_cov'].to_numpy(float) * 100.0
     fc_c = df['Fastcore_W_hall_cov'].to_numpy(float) * 100.0
 
-    sig_cov_fc = '*' if wilcoxon(sp_c - fc_c).pvalue < 0.05 else 'n.s.'
-    sig_cov_sw = '*' if wilcoxon(sp_c - sw_c).pvalue < 0.05 else 'n.s.'
-    sig_rt_fc  = '*' if wilcoxon(sp_t - fc_t).pvalue < 0.05 else 'n.s.'
-    sig_rt_sw  = '*' if wilcoxon(sp_t - sw_t).pvalue < 0.05 else 'n.s.'
+    sig_cov_fc = '*' if mannwhitneyu(sp_c, fc_c, alternative='two-sided').pvalue < 0.05 else 'n.s.'
+    sig_cov_sw = '*' if mannwhitneyu(sp_c, sw_c, alternative='two-sided').pvalue < 0.05 else 'n.s.'
+    sig_rt_fc  = '*' if mannwhitneyu(sp_t, fc_t, alternative='two-sided').pvalue < 0.05 else 'n.s.'
+    sig_rt_sw  = '*' if mannwhitneyu(sp_t, sw_t, alternative='two-sided').pvalue < 0.05 else 'n.s.'
 
     sns.set_theme(style='ticks', context='paper')
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.2, 5.1))
