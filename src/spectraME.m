@@ -121,6 +121,7 @@ if ~exist('useCoupling', 'var') || isempty(useCoupling)
 end
 
 [~,n] = size(model.S);
+origModel = model;
 coreRxns = ismember(1:n,coreRxns)';
 IrR = model.ub<=0; % reactions irreversible in reverse direction
 temp = model.ub(IrR);
@@ -159,8 +160,11 @@ end
 stalls = 0;
 while any(temp_core)
     before = sum(temp_core);
+    rev_unsettled = model.rev & temp_core;
+    iterWeights = zeros(n,1);
+    iterWeights(rev_unsettled) = unifrnd(1,1.1,sum(rev_unsettled),1);
     LPS = LPS+1;
-    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling);
+    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
     assertCoreFeasible(flux1,sum(coreRxns),tol);
     if sum(abs(flux))==0
         flux = flux1;
@@ -173,7 +177,7 @@ while any(temp_core)
         break
     end
     LPS = LPS+1;
-    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
+    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
     assertCoreFeasible(flux2,sum(coreRxns),tol);
     c1=unifrnd(0.45,0.55,1);
     flux = (c1*flux)+((1-c1)*flux2);
@@ -200,11 +204,11 @@ if strcmp(probType,'minNetMILP')
     [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
 elseif strcmp(probType,'minNetLP')
     LPS = LPS+1;
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
+    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
 elseif strcmp(probType,'minNetDC')
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
+    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
 elseif strcmp(probType,'growthOptim')
-    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling);
+    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling,solverTol,inclusionCutoff);
 elseif strcmp(probType,'tradeOff')
     if ~exist('solveTime', 'var') || isempty(solveTime)
         solveTime=7200;     
@@ -219,7 +223,7 @@ elseif strcmp(probType,'tradeOff')
 end
 
 flux = x(1:numel(model.rxns));
-Model = removeRxns(model, setdiff(model.rxns,model.rxns(reacInd)));
+Model = removeRxns(origModel, setdiff(origModel.rxns,origModel.rxns(reacInd)));
 if remGene
     Model = removeUnusedGenes(Model);
 end
@@ -238,10 +242,13 @@ if nSol>1
                 before = sum(temp_core);
                 LPS_ = LPS_+1;
                 r = randi(2);
+                rev_unsettled = model.rev & temp_core;
+                iterWeights = zeros(n,1);
+                iterWeights(rev_unsettled) = unifrnd(1,1.1,sum(rev_unsettled),1);
                 if r==1
-                    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling);
+                    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
                 else
-                    [flux1,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
+                    [flux1,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
                 end
                 assertCoreFeasible(flux1,sum(coreRxns),tol);
                 if sum(abs(flux))==0
@@ -256,9 +263,9 @@ if nSol>1
                 end
                 LPS_ = LPS_+1;
                 if r==1
-                    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
+                    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
                 else
-                    [flux2,~] = forward(model,temp_core,tol,steadystate,useCoupling);
+                    [flux2,~] = forward(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
                 end
                 assertCoreFeasible(flux2,sum(coreRxns),tol);
                 c1=unifrnd(0.45,0.55,1);
@@ -284,11 +291,11 @@ if nSol>1
                 [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol,useCoupling);
             elseif strcmp(probType,'minNetLP')
                 LPS_ = LPS_+1;
-                [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
+                [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
             elseif strcmp(probType,'minNetDC')
-                [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
+                [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
             elseif strcmp(probType,'growthOptim')
-                [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling);
+                [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling,solverTol,inclusionCutoff);
             elseif strcmp(probType,'tradeOff')
                 if ~exist('solveTime', 'var') || isempty(solveTime)
                     solveTime=7200;
@@ -303,7 +310,7 @@ if nSol>1
             end
     
             flux = x(1:numel(model.rxns));
-            Mod = removeRxns(model, setdiff(model.rxns,model.rxns(reacInd)));
+            Mod = removeRxns(origModel, setdiff(origModel.rxns,origModel.rxns(reacInd)));
             if remGene
                 Mod = removeUnusedGenes(Mod);
             end 
@@ -313,7 +320,8 @@ if nSol>1
     elseif strcmp(altSolMethod,'pathwayExclusion') % the problem has to be an milp problem
         for j=2:nSol
             if isempty(indicatorGroups)
-                prevSols = [prevSols;find(reacInd)];
+                freeIdx = find(direction == 0);
+                prevSols = [prevSols;{freeIdx(selected)}];
             else
                 prevSols = [prevSols;{find(selected)}];
             end
@@ -325,7 +333,7 @@ if nSol>1
             if stat~=1
                 break
             end
-            Mod = removeRxns(model, setdiff(model.rxns,model.rxns(reacInd)));
+            Mod = removeRxns(origModel, setdiff(origModel.rxns,origModel.rxns(reacInd)));
             if remGene
                 Mod = removeUnusedGenes(Mod);
             end

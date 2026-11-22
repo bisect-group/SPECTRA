@@ -1,6 +1,6 @@
-function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff,useCoupling)
+function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff,useCoupling,solverTol)
 % USAGE:
-% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff,useCoupling)
+% [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionCutoff,useCoupling,solverTol)
 %
 % INPUTS:
 %    model: COBRA model structure.
@@ -54,6 +54,9 @@ end
 if ~exist('useCoupling', 'var') || isempty(useCoupling)
     useCoupling = false;
 end
+if ~exist('solverTol', 'var')
+    solverTol = [];
+end
 % Seeding is opt-in. Without a seed the objective coefficients are drawn
 % exactly as before, so published results stay reproducible.
 if exist('seed', 'var') && ~isempty(seed)
@@ -92,9 +95,11 @@ end
 while sum(temp_core)~=sum(prev_rxns)
     prev_rxns = temp_core;
     LPS = LPS+2;
-    [flux1,~] = forwardcc(model,temp_core,tol,steadystate,useCoupling);
+    iterWeights = zeros(n,1);
+    iterWeights(temp_core) = unifrnd(1,1.1,sum(temp_core),1);
+    [flux1,~] = forwardcc(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
     temp_core(abs(flux1)>=detectionCutoff)=false;
-    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
+    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
     temp_core(abs(flux2)>=detectionCutoff)=false;
 end
 

@@ -225,9 +225,10 @@ if stat==1||stat==3
     x = solution.cont;
     z = solution.int;
     selected = z(1:nGroups) >= 0.5;
+    selectedOn = ismember(groupOf, find(selected));
     % A reaction with no binary is one nothing is deciding about, so
     % nothing should discard it.
-    reacInd = abs(x(1:n))>=inclusionCutoff | ungoverned;
+    reacInd = (direction ~= 0) | selectedOn | abs(x(1:n))>=inclusionCutoff | ungoverned;
 else
     fprintf('%s%s\n',num2str(solution.stat),' = solution.stat')
     fprintf('%s%s\n',num2str(solution.origStat),' = solution.origStat')

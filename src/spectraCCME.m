@@ -1,6 +1,6 @@
-function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed,useCoupling)
+function [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed,useCoupling,inclusionCutoff,solverTol)
 % USAGE: 
-%   [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed,useCoupling)
+%   [Model,BlockedCoreRxns,LPs] = spectraCCME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,seed,useCoupling,inclusionCutoff,solverTol)
 %
 % INPUTS:
 %     model:    COBRA model structure.
@@ -67,6 +67,12 @@ end
 if ~exist('useCoupling', 'var') || isempty(useCoupling)
     useCoupling = false;
 end
+if ~exist('inclusionCutoff', 'var')
+    inclusionCutoff = [];
+end
+if ~exist('solverTol', 'var')
+    solverTol = [];
+end
 if ~exist('consType', 'var') || isempty(consType)
     consType='stoichiometry';
 end
@@ -80,6 +86,7 @@ if exist('seed', 'var') && ~isempty(seed)
 end
 
 [~,n] = size(model.S); % number of metabolites and reactions
+origModel = model;
 IrR = model.ub<=0; % reactions irreversible in reverse direction
 temp = model.ub(IrR);
 model.S(:,IrR) = -model.S(:,IrR);
@@ -114,20 +121,22 @@ end
 while sum(temp_core)~=sum(prev_rxns)
     LPs = LPs+2;
     prev_rxns = temp_core;
+    iterWeights = zeros(n,1);
+    iterWeights(temp_core) = unifrnd(1,1.1,sum(temp_core),1);
     % maximizing number of reactions with forward flux
-    [flux1,~] = forwardcc(model,temp_core,tol,steadystate,useCoupling);
+    [flux1,~] = forwardcc(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
     temp_core(abs(flux1)>=tol*0.99)=false;
     if sum(abs(flux))==0
         flux = flux1;
     else
-        c1=round(unifrnd(0.45,0.55,1),4);
+        c1=unifrnd(0.45,0.55,1);
         flux = (c1*flux)+((1-c1)*flux1);
     end
     % maximizing number of reactions with reverse flux
-    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling);
+    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
     temp_core(abs(flux2)>=tol*0.99)=false;
     
-    c1=round(unifrnd(0.45,0.55,1),4);
+    c1=unifrnd(0.45,0.55,1);
     flux = (c1*flux)+((1-c1)*flux2);
     
 end
@@ -143,6 +152,7 @@ if any(coreRxns==1&flux==0)
     warning('Any of the core reactions carry zero flux have to rerun again')
 end
 
+selected = [];
 if strcmp(probType,'minNetMILP')
     if ~exist('solveTime', 'var') || isempty(solveTime)
         solveTime=7200;
@@ -153,14 +163,14 @@ if strcmp(probType,'minNetMILP')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,flux);
+    [reacInd,x,~,selected] = minNet(model,direction,weights,tol,steadystate,probType,solveTime,flux,{},{},inclusionCutoff,solverTol,useCoupling);
 elseif strcmp(probType,'minNetLP')
     LPs=LPs+1;
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
+    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
 elseif strcmp(probType,'minNetDC')
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType);
+    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
 elseif strcmp(probType,'growthOptim')
-    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate);
+    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling,solverTol,inclusionCutoff);
 elseif strcmp(probType,'tradeOff')
     if ~exist('solveTime', 'var') || isempty(solveTime)
         solveTime=7200;
@@ -171,22 +181,31 @@ elseif strcmp(probType,'tradeOff')
         sol = optimizeCbModel(model);
         flux = sol.x;
     end
-    [reacInd,x] = tradeOff(model,direction,weights,tol,steadystate,solveTime,flux);
+    [reacInd,x,~,selected] = tradeOff(model,direction,weights,tol,steadystate,solveTime,flux,{},{},inclusionCutoff,solverTol,useCoupling);
 end
 
 flux = x(1:numel(model.rxns));
-Model = removeRxns(model, setdiff(model.rxns,model.rxns(reacInd)));
+Model = removeRxns(origModel, setdiff(origModel.rxns,origModel.rxns(reacInd)));
 if remGene
     Model = removeUnusedGenes(Model);
 end
 if nSol>1
     % removing all the blocked reactions (this will be a consistent model)
-    Nmodel = removeRxns(model,model.rxns(BlckdRxns));
-    core2 = find(ismember(Nmodel.rxns,model.rxns(coreRxns)));
-    [~,id] = ismember(Nmodel.rxns,model.rxns);
+    Nmodel = removeRxns(origModel,origModel.rxns(BlckdRxns));
+    core2 = find(ismember(Nmodel.rxns,origModel.rxns(coreRxns)));
+    [~,id] = ismember(Nmodel.rxns,origModel.rxns);
     weights2 = weights(id);
-    reacInd2 = find(ismember(Nmodel.rxns,model.rxns(reacInd)));
-    Models = spectraME(Nmodel,core2,tol,consType,weights2,nSol-1,altSolMethod,probType,solveTime,remGene,{reacInd2},[],{},[],[],useCoupling);
-    Model=[Models;Model];
+    if ~isempty(selected)
+        freeIdx = find(direction == 0);
+        exclOrig = freeIdx(selected);
+        reacInd2 = find(ismember(Nmodel.rxns,origModel.rxns(exclOrig)));
+    else
+        reacInd2 = find(ismember(Nmodel.rxns,origModel.rxns(reacInd)));
+    end
+    Models = spectraME(Nmodel,core2,tol,consType,weights2,nSol-1,altSolMethod,probType,solveTime,remGene,{reacInd2},[],{},inclusionCutoff,solverTol,useCoupling);
+    if ~iscell(Models)
+        Models = {Models};
+    end
+    Model=[Models;{Model}];
 end
 end

@@ -104,6 +104,18 @@ assertTolFails(@() spectraME(model, core, 1e-4, 'stoichiometry', ones(n,1), ...
 assert(looseStat == 1, 'the MILP did not solve at 1e-7 (stat %d)', looseStat);
 assert(sum(kept) > 0, 'the loosened solve kept nothing');
 
+%% lpTolerances asks for feasTol and optTol without mutating global LP settings
+lpParams = lpTolerances();
+assert(isequal(lpParams, {'feasTol', 1e-9, 'optTol', 1e-9}), ...
+    'lpTolerances did not return default 1e-9 feasTol/optTol');
+[lpFeasBefore, lpOptBefore] = getCobraSolverParams('LP', {'feasTol','optTol'}, struct());
+spectraCC(model, 1e-4, 'stoichiometry', 0);
+spectraME(model, core, 1e-4, 'stoichiometry', ones(n,1), 1, 'coreDirection', ...
+    'minNetLP', 60, false, {}, 1);
+[lpFeasAfter, lpOptAfter] = getCobraSolverParams('LP', {'feasTol','optTol'}, struct());
+assert(isequal([lpFeasBefore, lpOptBefore], [lpFeasAfter, lpOptAfter]), ...
+    'LP solves mutated global CBT_LP_PARAMS');
+
 
 function values = readMilpParams()
 % Returns the session's MILP tolerances, globals included.

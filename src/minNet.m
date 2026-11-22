@@ -145,7 +145,8 @@ if strcmp(probType,'minNetLP')
     LPproblem.c=f;
     LPproblem.osense=1;%minimise
     LPproblem.csense = [csenseeq; csenseineq1; csenseineq2; csensecpl];
-    solution = solveCobraLP(LPproblem);
+    lpParams = lpTolerances(solverTol);
+    solution = solveCobraLP(LPproblem, lpParams{:});
     stat =solution.stat;
     if stat~=1
         fprintf('%s%s\n',num2str(solution.stat),' = solution.stat')
@@ -248,9 +249,10 @@ elseif strcmp(probType,'minNetMILP')
         x = solution.cont;
         z = solution.int;
         selected = z >= 0.5;
+        selectedOn = ismember(groupOf, find(selected));
         % A reaction with no binary is one nothing is deciding about, so
         % nothing should discard it.
-        reacInd = abs(x(1:n))>=inclusionCutoff | ungoverned;
+        reacInd = (direction ~= 0) | selectedOn | abs(x(1:n))>=inclusionCutoff | ungoverned;
     else
         fprintf('%s%s\n',num2str(solution.stat),' = solution.stat')
         fprintf('%s%s\n',num2str(solution.origStat),' = solution.origStat')

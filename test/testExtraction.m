@@ -139,3 +139,28 @@ catch err
     caught = strcmp(err.identifier, 'spectraME:badConsType');
 end
 assert(caught, 'an unknown consistencyType should be refused');
+
+%% reverse-irreversible reactions retain their original COBRA orientation and bounds
+% Uptake-only exchanges with bounds [-10, 0] (ub <= 0) are flipped internally
+% during optimization, and must come back in their original COBRA sign and bounds.
+revIrrModel = consistent;
+glcIdx = findRxnIDs(revIrrModel, 'EX_glc(e)');
+origStoich = full(revIrrModel.S(:, glcIdx));
+revIrrModel.lb(glcIdx) = -10;
+revIrrModel.ub(glcIdx) = 0;
+
+exME = spectraME(revIrrModel, findRxnIDs(revIrrModel, {'PGI'}), 1e-3, ...
+    'stoichiometry', [], 1, 'coreDirection', 'minNetLP', [], 0, {}, 0);
+glcME = findRxnIDs(exME, 'EX_glc(e)');
+assert(glcME > 0, 'EX_glc(e) should be retained to feed PGI');
+assert(exME.lb(glcME) == -10 && exME.ub(glcME) == 0, ...
+    'spectraME flipped reverse-irreversible bounds from [-10, 0] to [%g, %g]', ...
+    exME.lb(glcME), exME.ub(glcME));
+assert(isequal(full(exME.S(:, glcME)), origStoich(ismember(revIrrModel.mets, exME.mets))), ...
+    'spectraME negated S(:, EX_glc(e)) in the returned model');
+
+[exCCME, ~] = spectraCCME(revIrrModel, findRxnIDs(revIrrModel, {'PGI'}), 1e-3, ...
+    'stoichiometry', [], 1, 'coreDirection', 'minNetLP', [], 0, 0);
+glcCCME = findRxnIDs(exCCME, 'EX_glc(e)');
+assert(glcCCME > 0 && exCCME.lb(glcCCME) == -10 && exCCME.ub(glcCCME) == 0, ...
+    'spectraCCME did not preserve reverse-irreversible bounds [-10, 0]');

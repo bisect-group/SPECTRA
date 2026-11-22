@@ -40,6 +40,7 @@ if ~exist('remGene', 'var') || isempty(remGene)
 end
 
 [~,n] = size(model.S);
+origModel = model;
 core = ismember([1:n],core)';
 IrR = model.ub<=0; % reactions irreversible in reverse direction
 temp = model.ub(IrR);
@@ -61,14 +62,27 @@ model.lb(~rev)=0;
 model.lb(rev)=-Inf;
 model.ub(:)=Inf;
 
+% Preserve original COBRA reaction orientation on the thermodynamic model
+thermoOrigModel = origModel;
+thermoOrigModel.lb(rev) = -Inf;
+thermoOrigModel.ub(rev) = Inf;
+thermoOrigModel.lb(~rev & ~IrR) = 0;
+thermoOrigModel.ub(~rev & ~IrR) = Inf;
+thermoOrigModel.lb(IrR) = -Inf;
+thermoOrigModel.ub(IrR) = 0;
+thermoOrigModel.rev = rev;
+
 temp_core = core;
 flux = zeros(n,1);
 LPS=0;
 stalls = 0;
 while any(temp_core)
     before = sum(temp_core);
+    rev_unsettled = model.rev & temp_core;
+    iterWeights = zeros(n,1);
+    iterWeights(rev_unsettled) = unifrnd(1,1.1,sum(rev_unsettled),1);
     LPS = LPS+1;
-    [flux1,~] = forward(model,temp_core,tol,1);
+    [flux1,~] = forward(model,temp_core,tol,1,false,[],iterWeights);
     if sum(abs(flux))==0
         flux = flux1;
     else
@@ -80,7 +94,7 @@ while any(temp_core)
         break
     end
     LPS = LPS+1;
-    [flux2,~] = reverse(model,temp_core,tol,1);
+    [flux2,~] = reverse(model,temp_core,tol,1,false,[],iterWeights);
     c1=unifrnd(0.45,0.55,1);
     flux = (c1*flux)+((1-c1)*flux2);
     temp_core(core==1 & abs(flux)>=tol*1e-1) = 0; 
@@ -92,7 +106,7 @@ direction(core==1&flux>0) = 1;
 direction(core==1&flux<0) = -1;
 LPS = LPS+1;
 reacInd = minNet(model,direction,weights,tol,1); %LPminimal
-Model = removeRxns(model, setdiff(model.rxns,model.rxns(reacInd)));
+Model = removeRxns(thermoOrigModel, setdiff(thermoOrigModel.rxns,thermoOrigModel.rxns(reacInd)));
 if remGene
     Model = removeUnusedGenes(Model);
 end
@@ -106,10 +120,13 @@ if nSol>1
             before = sum(temp_core);
             LPS = LPS+1;
             r = randi(2);
+            rev_unsettled = model.rev & temp_core;
+            iterWeights = zeros(n,1);
+            iterWeights(rev_unsettled) = unifrnd(1,1.1,sum(rev_unsettled),1);
             if r==1
-                [flux1,~] = forward(model,temp_core,tol,1);
+                [flux1,~] = forward(model,temp_core,tol,1,false,[],iterWeights);
             else
-                [flux1,~] = reverse(model,temp_core,tol,1);
+                [flux1,~] = reverse(model,temp_core,tol,1,false,[],iterWeights);
             end
             if sum(abs(flux))==0
                 flux = flux1;
@@ -123,9 +140,9 @@ if nSol>1
             end
             LPS = LPS+1;
             if r==1
-                [flux2,~] = reverse(model,temp_core,tol,1);
+                [flux2,~] = reverse(model,temp_core,tol,1,false,[],iterWeights);
             else
-                [flux2,~] = forward(model,temp_core,tol,1);
+                [flux2,~] = forward(model,temp_core,tol,1,false,[],iterWeights);
             end
             c1=unifrnd(0.45,0.55,1);
             flux = (c1*flux)+((1-c1)*flux2);
@@ -138,7 +155,7 @@ if nSol>1
         direction(core==1&flux<0) = -1;
         LPS = LPS+1;
         reacInd = minNet(model,direction,weights,tol,1); %LPminimal
-        Mod = removeRxns(model, setdiff(model.rxns,model.rxns(reacInd)));
+        Mod = removeRxns(thermoOrigModel, setdiff(thermoOrigModel.rxns,thermoOrigModel.rxns(reacInd)));
         if remGene
             Mod = removeUnusedGenes(Mod);
         end

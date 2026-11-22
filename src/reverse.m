@@ -1,6 +1,6 @@
-function [flux,z] = reverse(model,core,tol,steadyState,useCoupling)
+function [flux,z] = reverse(model,core,tol,steadyState,useCoupling,solverTol,objWeights)
 % USAGE:
-%   [flux,z] = reverse(model,core,tol,steadyState)
+%   [flux,z] = reverse(model,core,tol,steadyState,useCoupling,solverTol,objWeights)
 %
 % INPUTS:
 %    model:       COBRA model structure.
@@ -9,6 +9,12 @@ function [flux,z] = reverse(model,core,tol,steadyState,useCoupling)
 %                 by a reaction for it to be defined as consistent)
 %    steadyState: Boolean value indicating whether to assume steady state
 %                 condition (S.v = 0) or accumulation condition (S.v >= 0)
+%
+% OPTIONAL INPUTS:
+%    useCoupling: Whether to apply coupling constraints (Default: false)
+%    solverTol:   Feasibility and optimality tolerance for solveCobraLP (Default: 1e-9)
+%    objWeights:  Full n x 1 vector of positive objective weights to reuse
+%                 across forward and reverse LPs within the same iteration
 %
 % OUTPUTS:
 %    flux:  Flux through the reactions in the COBRA model
@@ -23,7 +29,12 @@ n_rev_core = sum(rev_core);% number of reversible core reactions
 
 
 % objective
-f = [zeros(n,1);unifrnd(1,1.1,n_rev_core,1)];
+if exist('objWeights','var') && ~isempty(objWeights)
+    w = reshape(objWeights(rev_core), n_rev_core, 1);
+else
+    w = unifrnd(1,1.1,n_rev_core,1);
+end
+f = [zeros(n,1);w];
 
 % equalities
 Aeq = [model.S, sparse(m,n_rev_core)];
@@ -60,7 +71,9 @@ LPproblem.c=f;
 LPproblem.osense=1;%minimise
 LPproblem.csense = [csenseeq; csenseineq; csensecpl];
 
-solution = solveCobraLP(LPproblem);
+if ~exist('solverTol','var'); solverTol = []; end
+lpParams = lpTolerances(solverTol);
+solution = solveCobraLP(LPproblem, lpParams{:});
 if solution.stat~=1
     fprintf('%s%s\n',num2str(solution.stat),' = solution.stat')
     fprintf('%s%s\n',num2str(solution.origStat),' = solution.origStat')

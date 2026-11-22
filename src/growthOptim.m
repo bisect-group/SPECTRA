@@ -1,6 +1,6 @@
-function [reacInd,x,stat] = growthOptim(model,direction,weights,tol,steadyState,useCoupling)
+function [reacInd,x,stat] = growthOptim(model,direction,weights,tol,steadyState,useCoupling,solverTol,inclusionCutoff)
 % USAGE:
-%   [reacInd,x,stat] = growthOptim(model,direction,weights,tol,steadyState)
+%   [reacInd,x,stat] = growthOptim(model,direction,weights,tol,steadyState,useCoupling,solverTol,inclusionCutoff)
 %
 % INPUTS:
 %     model:       COBRA model structure.
@@ -65,6 +65,10 @@ ub = [ub;Inf(n,1)];
 
 % coupling constraints, where the model has any
 if ~exist('useCoupling','var'); useCoupling = false; end
+if ~exist('solverTol','var'); solverTol = []; end
+if ~exist('inclusionCutoff','var') || isempty(inclusionCutoff)
+    inclusionCutoff = tol*1e-7;
+end
 [Acpl,bcpl,csensecpl] = couplingRows(model,n,useCoupling);
 
 % Set up LP problem
@@ -75,7 +79,8 @@ LPproblem.ub=ub;
 LPproblem.c=f;
 LPproblem.osense=-1;%maximize
 LPproblem.csense = [csenseeq; csenseineq1; csenseineq2; csensecpl];
-solution = solveCobraLP(LPproblem);
+lpParams = lpTolerances(solverTol);
+solution = solveCobraLP(LPproblem, lpParams{:});
 stat =solution.stat;
 if stat~=1
     fprintf('%s%s\n',num2str(solution.stat),' = solution.stat')
@@ -84,6 +89,6 @@ if stat~=1
     x =[];reacInd=[];
 else
     x=solution.full;
-    reacInd = abs(x(1:n))>=tol*1e-7;
+    reacInd = abs(x(1:n))>=inclusionCutoff;
 end
 end
