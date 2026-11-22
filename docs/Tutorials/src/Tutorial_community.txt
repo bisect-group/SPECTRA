@@ -190,6 +190,33 @@ fprintf('uncoupled, eater dead:  OVERFLOW runs at %.4g\n', free.f);
 
 0.01 and 10. Coupled, the eater's only remaining slack is couplingThreshold; uncoupled, a unit that cannot grow at all still strips the pool of every acetate the feeder puts into it.
 
+Coupling is written into the model, as the C, d and dsense fields, and it is there for every solver that reads them: optimizeCbModel applies them always, which is what the comparison above measures.
+
+SPECTRA's own routines do not, unless told. spectraCC, spectraME and the formulations build their problems from S, lb and ub, because flux consistency is conventionally defined that way and a comparison against fastcc or FASTERCC has to answer the same question. Pass useCoupling to bring the coupling in:
+
+```
+stalled = community.model;
+stalled.ub(findRxnIDs(stalled,'GROW__E')) = 0;   % the eater cannot grow
+
+plain   = spectraCC(stalled, 0.1, 'stoichiometry', 1);
+coupled = spectraCC(stalled, 0.1, 'stoichiometry', 1, [], true);
+fprintf('default:     %d of %d reactions consistent\n', ...
+    numel(plain), numel(stalled.rxns));
+fprintf('useCoupling: %d of %d reactions consistent\n', ...
+    numel(coupled), numel(stalled.rxns));
+disp(setdiff(stalled.rxns(plain), stalled.rxns(coupled))')
+```
+
+```
+%   default:     12 of 14 reactions consistent
+%   useCoupling: 7 of 14 reactions consistent
+%       'EX_co2[u]'  'OVERFLOW__E'  'TR_ac_u__E'  'TR_co2_u__E'  'UP_ac__E'
+```
+
+The five that drop out are the stalled unit's own reactions and the pool exchange only it feeds. Left out, the coupling is no constraint at all and a dead organism goes on trading; brought in, it stops.
+
+gapfillCommunity and minimalMicrobiome pass useCoupling themselves, and have to: a database reaction that can only carry flux by ignoring the coupling is not a candidate to fill in, and an organism whose binary is switched off has to actually stop. Anywhere else you work on a community by hand — spectraCC, spectraME, minimalReactome, checkExtraction — it is yours to pass.
+
 The anchor is the reaction the coupling gates on. It is taken from the model's objective, or from a reaction named biomass*, and refused rather than guessed when neither settles it — coupling a unit to the wrong reaction would throttle or free the whole unit with no error anywhere. Pass biomassReactions to say it outright.
 
 The default couplingFactor of 1000 is the published value for a biomass anchor running at around 1. An anchor that runs at a different scale needs a different factor, and that is what the check reports:

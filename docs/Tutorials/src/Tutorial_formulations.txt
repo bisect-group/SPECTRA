@@ -114,6 +114,10 @@ A weight of 1000 works here only because this model carries fluxes of order one 
 
 minNetDC is still accepted but deprecated. It solved the same problem as minNetMILP through a difference-of-convex-functions relaxation, from the era before MILP solvers handled these problems well. Use minNetMILP instead.
 
+## Coupling constraints
+
+All four build their problem from S, lb and ub. A constraint living in model.C — biomass coupling, or anything else coupleRxnList2Rxn wrote — is not in the problem unless you ask, through the useCoupling argument each of them takes last. It is off by default so that the formulations answer the conventional question, defined over the stoichiometry alone. gapfillCommunity and minimalMicrobiome turn it on, because for a community the coupling is the point. Tutorial_consistency has the worked comparison.
+
 ## Which one should I use?
 
 Start with minNetLP. It is the default, it is one LP, and for most purposes a slightly larger model is not a problem.

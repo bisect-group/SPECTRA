@@ -147,6 +147,9 @@ Without it a tissue whose anchor carries no flux can still run its metabolism an
 
 ## Extracting context-specific tissues
 
+Coupling is written into the body model, but SPECTRA's routines leave it out of their problems unless told: pass useCoupling to spectraCC, spectraME or minimalReactome to have a tissue held to its anchor during the extraction as well as during FBA. Off, which is the default, a tissue that cannot carry flux through its anchor can still run everything else. Tutorial_consistency explains the choice; Tutorial_community shows it on a two-unit example.
+
+
 The joined model is an ordinary COBRA model, so the extraction works on it as it would on any other. The core set is where each tissue's identity comes from: name the reactions that tissue's data supports, tagged by it.
 
 ```

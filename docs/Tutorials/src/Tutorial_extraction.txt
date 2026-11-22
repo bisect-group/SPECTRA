@@ -137,6 +137,19 @@ fprintf('remGene=0: %d genes\nremGene=1: %d genes\n', ...
 
 Both models have the same 27 reactions. Only the gene list differs, so turn remGene on if you intend to do anything gene-based with the result, and leave it off if you want the extracted model to stay comparable to the input.
 
+## Coupling constraints
+
+A model may carry constraints that are not in S — the C, d and dsense fields that coupleRxnList2Rxn writes, and that buildCommunityModel uses to tie each unit of a community to its own anchor. spectraME and spectraCCME build their problems from S, lb and ub alone, so those constraints play no part unless you pass useCoupling.
+
+```
+% extracted = spectraME(model, core, tol, consType, weights, nSol, ...
+%     altSolMethod, probType, solveTime, remGene, {}, seed, {}, [], [], true);
+```
+
+That is the last argument, so the shorter call forms above keep working. Leave it off and the extraction answers the question fastcc and FASTERCC answer; turn it on and it answers the one optimizeCbModel answers, which is what you want when the extracted model is going straight into FBA. Tutorial_consistency works the difference through on an example, and Tutorial_community shows it on a community, where leaving the coupling out lets a unit that cannot grow go on feeding the rest.
+
+Whatever you choose, pass the same to checkExtraction. A check that answers a different question from the extraction is not a check of it.
+
 ## Reproducibility
 
 The direction phase breaks ties between core reactions with randomised coefficients, so an unseeded run returns a different model each time. The last argument pins them.

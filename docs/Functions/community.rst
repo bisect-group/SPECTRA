@@ -33,6 +33,15 @@ The compartmentalised layout, the biomass coupling and its parameters follow
 the joint FBA formulation used for minimal microbiomes in Raghu et al.
 (2024), *npj Systems Biology and Applications* **10**, 46.
 
+The coupling is written into the model as the ``C``, ``d`` and ``dsense``
+fields, so ``optimizeCbModel`` applies it always. SPECTRA's own routines do
+not: ``spectraCC``, ``spectraME`` and the formulations build their problems
+from ``S``, ``lb`` and ``ub`` unless passed ``useCoupling``, for the reason
+given under :doc:`consistency`. ``gapfillCommunity`` and
+``minimalMicrobiome`` pass it themselves, since a community whose units are
+not held to their anchors is not what either of them is about. Working on a
+community by hand, it is yours to pass.
+
 What comes back is a structure describing the joined model, not the model
 alone: which reactions belong to which unit, which anchor each unit is
 coupled to, what each pool holds, and -- where databases were supplied --

@@ -42,5 +42,10 @@ It is the opposite operation to :doc:`gapfilling`, and the two use the same
 vocabulary of tasks: gap-filling adds reactions until the tasks pass, this
 removes reactions while they still do.
 
+A model carrying coupling constraints has them left out of the problem
+unless ``useCoupling`` says otherwise, as everywhere else in the package.
+The reactome is then minimal for the stoichiometry rather than for the
+parameterisation.
+
 .. automodule:: src
    :members: minimalReactome

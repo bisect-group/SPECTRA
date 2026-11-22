@@ -204,6 +204,9 @@ fprintf('proved essential before the solve: %d\n', numel(with.essential));
 
 ## Two things to watch
 
+If the model carries coupling constraints — a community or a body built by buildCommunityModel — they are left out of the problem unless you pass useCoupling, exactly as in spectraCC and spectraME. The reactome then comes back minimal for the stoichiometry rather than for the parameterisation, which may or may not be what you meant.
+
+
 **The binaries are not the whole answer.** A binary the solver leaves at its integrality tolerance rather than at exactly zero still multiplies a flux bound of up to a thousand, so a reaction the solution genuinely depends on can be reported as switched off, and dropping it breaks the chain it belonged to. Any reaction carrying more than inclusionCutoff — tol*1e-7, so 1e-11 at the default tolerance — is therefore kept whatever its binary says. The count can consequently sit a little above the MILP's own objective value. That trade is deliberate, and it is the same one spectraME makes.
 
 **Nothing is added to the network, ever.** This is worth restating because it is the assumption behind every number above. The answer is always a subset of the model you passed in, so it is only as good as that model: a minimal reactome of a draft reconstruction inherits the draft's gaps.

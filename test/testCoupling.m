@@ -131,6 +131,34 @@ assert(~isempty(spectraCC(oneWay, 1e-4, 'stoichiometry', [], [], true)), ...
     'the fixture is unworkable for some reason other than the constraint');
 
 
+%% checkExtraction is held to the same choice, by both of its methods
+% A check that answers a different question from the extraction is not a
+% check of it, so useCoupling has to reach both methods. That takes some
+% doing on the fva side: fluxVariability applies a model's coupling
+% constraints whether or not you want it to.
+warning('off', 'checkExtraction:notValid');
+restoreValid = onCleanup(@() warning('on', 'checkExtraction:notValid'));
+
+for method = {'fva', 'spectra'}
+    withC = checkExtraction(shut, {}, 0.1, 'stoichiometry', 0.1, 1, ...
+        method{1}, true);
+    withoutC = checkExtraction(shut, {}, 0.1, 'stoichiometry', 0.1, 1, ...
+        method{1}, false);
+    assert(ismember('TR_ac_u__C', withC.blocked), ...
+        ['method %s did not call a coupling-pinned reaction blocked when ' ...
+         'asked to apply the coupling'], method{1});
+    assert(~ismember('TR_ac_u__C', withoutC.blocked), ...
+        ['method %s applied the coupling without being asked, so it cannot ' ...
+         'check an extraction that did not'], method{1});
+end
+
+%% and it leaves the coupling off by default, as the extractions do
+byDefault = checkExtraction(shut, {}, 0.1, 'stoichiometry', 0.1, 1, 'fva');
+assert(~ismember('TR_ac_u__C', byDefault.blocked), ...
+    'checkExtraction applied the coupling by default');
+clear restoreValid
+
+
 function model = couplingOrganism(name, eats, makes)
 % Returns a one-step organism: eats one metabolite, secretes another.
 model = createModel();

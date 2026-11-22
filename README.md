@@ -139,6 +139,17 @@ chosen, not the routine called.
 | Which members of this community are actually needed? | `minimalMicrobiome` |
 | Did the extraction do what it was asked? | `checkExtraction` |
 
+A model may carry constraints that are not in its stoichiometric matrix:
+the `C`, `d` and `dsense` fields that `coupleRxnList2Rxn` writes, and that
+`buildCommunityModel` uses to tie every reaction of a unit to that unit's
+anchor. SPECTRA builds its problems from `S`, `lb` and `ub` alone, so those
+play no part unless you pass `useCoupling` — flux consistency is
+conventionally defined over the stoichiometry, which is what a comparison
+against fastcc or FASTERCC has to answer too. Turn it on when the
+parameterisation is the point, or when the result is going straight into
+FBA, which applies them regardless. `gapfillCommunity` and
+`minimalMicrobiome` turn it on themselves.
+
 A community comes back as a structure describing the joined model, which
 `communityOrganismOf`, `couplingSummary`, `communitySubset`,
 `communityWithModel` and `communityDecompose` read and reshape;

@@ -1,9 +1,9 @@
-function report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutoff,seed,method)
+function report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutoff,seed,method,useCoupling)
 % Check an extracted model against what the extraction promised.
 %
 % USAGE:
 %
-%    report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutoff,seed,method)
+%    report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutoff,seed,method,useCoupling)
 %
 % INPUTS:
 %    extracted:          COBRA model structure returned by spectraME or
@@ -41,6 +41,16 @@ function report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutof
 %                        marginal reactions - exactly the models an LP
 %                        extraction produces. Use it only when speed
 %                        matters more than the answer.
+%    useCoupling:        Whether to apply the model's coupling constraints,
+%                        the C, d and dsense fields. Pass whatever the
+%                        extraction was run with, for the same reason tol
+%                        has to match: a check that answers a different
+%                        question from the extraction is not a check of it.
+%                        Both methods are held to this, which takes some
+%                        doing - fluxVariability honours the constraints
+%                        whether or not you want it to, so when this is
+%                        false they are dropped from the copy it is given.
+%                        (Default: false, as the extractions default)
 %
 % OUTPUTS:
 %    report:             Structure with fields:
@@ -93,6 +103,9 @@ end
 if ~exist('method', 'var') || isempty(method)
     method = 'fva';
 end
+if ~exist('useCoupling', 'var') || isempty(useCoupling)
+    useCoupling = false;
+end
 if ~exist('seed', 'var')
     seed = [];
 end
@@ -132,14 +145,22 @@ if strcmp(method,'fva')
     % optPercentage 0 leaves the objective unconstrained, so this asks what
     % each reaction can carry at all rather than what it can carry at
     % optimal growth.
-    [minF,maxF] = fluxVariability(extracted, 0, 'max', extracted.rxns, 0);
+    % fluxVariability always applies C, so the fields come off when the
+    % extraction did not use them. Otherwise the check would call a
+    % reaction blocked for a constraint the extraction never saw.
+    forFva = extracted;
+    if ~useCoupling
+        forFva = dropCoupling(forFva);
+    end
+    [minF,maxF] = fluxVariability(forFva, 0, 'max', forFva.rxns, 0);
     isBlocked = (abs(minF) < detectionCutoff) & (abs(maxF) < detectionCutoff);
     blocked = extracted.rxns(isBlocked);
 else
     if ~exist('detectionCutoff', 'var') || isempty(detectionCutoff)
         detectionCutoff = 0.99*tol;
     end
-    consIDs = spectraCC(extracted, tol, consType, seed, detectionCutoff);
+    consIDs = spectraCC(extracted, tol, consType, seed, detectionCutoff, ...
+        useCoupling);
     isBlocked = true(numel(extracted.rxns),1);
     isBlocked(consIDs) = false;
     blocked = extracted.rxns(isBlocked);
@@ -177,5 +198,18 @@ if ~report.isValid
         ['The extracted model is not valid: %d core reaction(s) missing, ' ...
          '%d reaction(s) blocked, %d of those core.'], ...
         numel(missingCore), numel(blocked), numel(blockedCore));
+end
+end
+
+
+function model = dropCoupling(model)
+% Returns the model without its coupling constraints.
+%
+% For handing to something that would otherwise apply them, when the
+% question being asked is about the stoichiometry alone.
+for field = {'C', 'd', 'dsense', 'ctrs'}
+    if isfield(model, field{1})
+        model = rmfield(model, field{1});
+    end
 end
 end

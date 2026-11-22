@@ -101,6 +101,53 @@ Which you want depends on whether tol is a meaningful flux magnitude for your pr
 
 detectionCutoff is the last argument rather than a more natural position next to tol, so that code written against the earlier signature keeps working.
 
+## Coupling constraints, and why they are left out
+
+A model may carry constraints that are not in S: the C, d and dsense fields that coupleRxnList2Rxn writes, tying one reaction's flux to another's. buildCommunityModel uses them to tie every reaction of a unit to that unit's anchor, so that a unit which is not growing cannot run its metabolism either.
+
+spectraCC leaves them out. Flux consistency is conventionally defined over the stoichiometry alone — that is what fastcc, FASTCORE, FASTERCC and swiftcore all answer, and a comparison against any of them has to answer the same question. A coupling constraint is a modelling device rather than stoichiometry, so a reaction blocked only by one is not blocked in the network; it is blocked in that parameterisation.
+
+Pass useCoupling to ask the other question. Here PGI is gated on growth exactly as a community gates a unit on its anchor, and growth is held at zero:
+
+```
+bio = model.rxns{model.c ~= 0};
+gated = changeRxnBounds(model, bio, 0, 'u');
+gated = addCOBRAConstraints(gated, {'PGI', bio}, 0.01, ...
+    'c', [1 -1000], 'dsense', 'L', 'ConstraintID', 'gatePGIup');
+gated = addCOBRAConstraints(gated, {'PGI', bio}, 0.01, ...
+    'c', [-1 -1000], 'dsense', 'L', 'ConstraintID', 'gatePGIdown');
+
+plain   = spectraCC(gated, 0.1, 'stoichiometry', 1);
+coupled = spectraCC(gated, 0.1, 'stoichiometry', 1, [], true);
+fprintf('default:     %d of %d consistent\n', numel(plain), numel(gated.rxns));
+fprintf('useCoupling: %d of %d consistent\n', numel(coupled), numel(gated.rxns));
+disp(setdiff(gated.rxns(plain), gated.rxns(coupled))')
+```
+
+```
+%   default:     84 of 95 consistent
+%   useCoupling: 83 of 95 consistent
+%       'PGI'
+```
+
+Neither answer is wrong; they answer different questions. But note which one agrees with the rest of COBRA, because optimizeCbModel applies C whether you ask it to or not:
+
+```
+hi = optimizeCbModel(changeObjective(gated,'PGI'),'max');
+lo = optimizeCbModel(changeObjective(gated,'PGI'),'min');
+fprintf('FBA says PGI range [%g, %g]\n', lo.f, hi.f);
+```
+
+```
+%   FBA says PGI range [-0.01, 0.01]
+```
+
+With coupling left out, spectraCC at tol 0.1 certifies a reaction that FBA on the same model object says cannot exceed 0.01. If you are going to build a model from the result and then run FBA on it, that disagreement is the thing to avoid, and useCoupling is how.
+
+The same argument runs through the package. spectraME, spectraCCME, minNet, tradeOff, growthOptim, minimalReactome and checkExtraction all take useCoupling and all default to false. gapfillCommunity and minimalMicrobiome turn it on themselves, because a community whose units are not held to their anchors is not the thing either of them is about. Whatever an extraction was run with, pass the same to checkExtraction: a check that answers a different question from the extraction is not a check of it.
+
+Tutorial_community shows what this looks like on a real community, where leaving the coupling out lets a unit that cannot grow go on feeding the rest.
+
 ## Reproducibility
 
 The LPs use randomised objective coefficients to break ties between reactions, so the flux distributions differ between runs even though the consistent set does not. Pass a seed to pin them.
