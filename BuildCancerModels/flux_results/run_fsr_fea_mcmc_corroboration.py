@@ -66,23 +66,23 @@ def render_fig5d_bubble(pathway_csv, out_pdf, ring_color='#E66100'):
     palette = {'Pathway-level': '#076d6d', 'Component-level': '#08306b', 'Uncertain': '#91cf60'}
     evidence_order = ['Pathway-level', 'Component-level', 'Uncertain']
 
-    s_min, s_max = 180.0, 760.0
+    s_min, s_max = 170.0, 700.0
     v_min, v_max = df['neglog10_padj'].min(), df['neglog10_padj'].max()
 
     sns.set_theme(style='white', context='paper')
-    fig, ax = plt.subplots(figsize=(max(13.2, len(pw_order) * 0.62), 8.6))
+    fig, ax = plt.subplots(figsize=(15.0, 8.5))
     ax = sns.scatterplot(
         data=df, x='pathway', y='cancer_label', size='neglog10_padj',
         hue='evidence_tier', hue_order=evidence_order, sizes=(s_min, s_max),
-        palette=palette, edgecolor='white', linewidth=1.3, alpha=0.92, ax=ax, zorder=3,
+        palette=palette, edgecolor='white', linewidth=1.1, alpha=0.92, ax=ax, zorder=3,
     )
 
     for _, r in df.iterrows():
         if r['mcmc_corroborated']:
             sz = s_min + (s_max - s_min) * (r['neglog10_padj'] - v_min) / max(v_max - v_min, 1e-9)
-            sz_outer = (np.sqrt(sz) + 5.8) ** 2
+            sz_outer = (np.sqrt(sz) + 3.2) ** 2
             ax.scatter([r['pathway']], [r['cancer_label']], s=sz_outer,
-                       facecolors='none', edgecolors=ring_color, linewidths=2.4, zorder=5)
+                       facecolors='none', edgecolors=ring_color, linewidths=1.2, zorder=5)
 
     ax.yaxis.grid(True, linestyle='--', which='major', color='grey', alpha=0.22)
     ax.xaxis.grid(True, linestyle='--', which='major', color='grey', alpha=0.22)

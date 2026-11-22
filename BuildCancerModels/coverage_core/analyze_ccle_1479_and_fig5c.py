@@ -4,27 +4,24 @@ Computes extracted model sizes |N|, non-core reaction additions |N \\ C|,
 135-cancer-hallmark recovery, size-controlled non-core hypergeometric
 fold-enrichment (FE) & Fisher odds ratios, tissue-inappropriate negative-control
 pathway fold-enrichment, exact paired Wilcoxon signed-rank statistics, and
-generates Figure 5c (cancer_pareto_speed_coverage.pdf / .png) across all
-N = 1,479 CCLE context-specific models (SPECTRA, weighted Fastcore, Swiftcore).
+generates Figure 5c (cancer_pareto_speed_coverage.pdf / .png: two-panel bar
+comparison of hallmark recovery and extraction runtime with square significance
+brackets ┌───┐ and * / n.s.) across all N = 1,479 CCLE CSMs.
 """
 import math
 import os
-import re
 import numpy as np
 import pandas as pd
-import scipy.io as sio
 from scipy.stats import wilcoxon
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import seaborn as sns
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BCM_ROOT = os.path.dirname(HERE)
 REPO_ROOT = os.path.dirname(BCM_ROOT)
-DEPMAP_DIR = os.path.join(BCM_ROOT, 'DepMapModels_Recon')
 VIS_DIR = os.path.join(REPO_ROOT, 'Visualisations')
 
 
@@ -51,89 +48,107 @@ def exact_wilcoxon_str(x, y, alternative='two-sided'):
     z = (w_plus - mean_w) / math.sqrt(var_w)
     az = abs(z)
     ln_tail = -0.5 * az * az - math.log(az * math.sqrt(2 * math.pi)) + math.log(1 - 1/(az**2) + 3/(az**4))
-    ln_p = ln_tail + math.log(2.0) if alternative == 'two-sided' else (ln_tail if ((alternative == 'greater' and z > 0) or (alternative == 'less' and z < 0)) else 0.0)
+    ln_p = ln_tail + math.log(2.0) if alternative == 'two-sided' else ln_tail
     log10_p = ln_p / math.log(10.0)
     exp = int(math.floor(log10_p))
     mant = 10 ** (log10_p - exp)
     return 0.0, f"{mant:.2f}e{exp} (p < 1e-300)"
 
 
-def plot_pareto_from_metrics(df, out_pdf, out_png):
-    sp_times = df['SPECTRA_time_s'].to_numpy(float)
-    sw_times = df['Swiftcore_time_s'].to_numpy(float)
-    fcw_times = df['fcw_time_s'].to_numpy(float)
+def add_bracket(ax, x1, x2, y, h, label, lw=1.5, fontsize=15):
+    ax.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=lw, color='#111f33', clip_on=False)
+    va = 'center' if label == '*' else 'bottom'
+    dy = h + (0.35 * h if label == '*' else 0.15 * h)
+    fs = fontsize if label == '*' else fontsize - 3
+    ax.text(0.5 * (x1 + x2), y + dy, label, ha='center', va=va,
+            fontsize=fs, fontweight='bold', color='#111f33')
 
-    sp_cov = df['SPECTRA_hall_cov'].to_numpy(float) * 100.0
-    sw_cov = df['Swiftcore_hall_cov'].to_numpy(float) * 100.0
-    fcw_cov = df['Fastcore_W_hall_cov'].to_numpy(float) * 100.0
+
+def plot_fig5c_from_metrics(df, out_pdf, out_png):
+    sp_t = df['SPECTRA_time_s'].to_numpy(float)
+    sw_t = df['Swiftcore_time_s'].to_numpy(float)
+    fc_t = df['fcw_time_s'].to_numpy(float)
+
+    sp_c = df['SPECTRA_hall_cov'].to_numpy(float) * 100.0
+    sw_c = df['Swiftcore_hall_cov'].to_numpy(float) * 100.0
+    fc_c = df['Fastcore_W_hall_cov'].to_numpy(float) * 100.0
+
+    sig_cov_fc = '*' if wilcoxon(sp_c - fc_c).pvalue < 0.05 else 'n.s.'
+    sig_cov_sw = '*' if wilcoxon(sp_c - sw_c).pvalue < 0.05 else 'n.s.'
+    sig_rt_fc  = '*' if wilcoxon(sp_t - fc_t).pvalue < 0.05 else 'n.s.'
+    sig_rt_sw  = '*' if wilcoxon(sp_t - sw_t).pvalue < 0.05 else 'n.s.'
 
     sns.set_theme(style='ticks', context='paper')
-    fig, ax = plt.subplots(figsize=(7.6, 5.7))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.2, 5.1))
 
-    specs = [
-        ('SPECTRA',   sp_times,  sp_cov,  '#076d6d', '#044747', 'o'),
-        ('Swiftcore', sw_times,  sw_cov,  '#08306b', '#051f45', 's'),
-        ('Fastcore',  fcw_times, fcw_cov, '#5aae61', '#276419', '^'),
-    ]
+    methods = ['SPECTRA', 'Fastcore', 'Swiftcore']
+    x_pos = np.array([0, 1, 2])
+    cols = ['#076d6d', '#80c080', '#08306b']
+    edge_cols = ['#044747', '#2e6f40', '#051f45']
 
-    for _, t, cov, col, _, _ in specs:
-        ax.scatter(np.clip(t, 0.15, None), cov, s=13, color=col, alpha=0.14,
-                   edgecolors='none', rasterized=True, zorder=2)
+    cov_list = [sp_c, fc_c, sw_c]
+    med_c = [np.median(v) for v in cov_list]
+    q25_c = [np.percentile(v, 25) for v in cov_list]
+    q75_c = [np.percentile(v, 75) for v in cov_list]
 
-    for label, t, cov, col, edge_col, mk in specs:
-        t_q25, t_med, t_q75 = np.percentile(t, [25, 50, 75])
-        c_q25, c_med, c_q75 = np.percentile(cov, [25, 50, 75])
-        ax.errorbar([t_med], [c_med], xerr=[[t_med - t_q25], [t_q75 - t_med]],
-                    yerr=[[c_med - c_q25], [c_q75 - c_med]],
-                    fmt='none', ecolor='white', elinewidth=4.2, capsize=5, capthick=3.0, zorder=5)
-        ax.errorbar([t_med], [c_med], xerr=[[t_med - t_q25], [t_q75 - t_med]],
-                    yerr=[[c_med - c_q25], [c_q75 - c_med]],
-                    fmt='none', ecolor=edge_col, elinewidth=2.1, capsize=4.5, capthick=1.8, zorder=6)
-        ax.scatter([t_med], [c_med], s=145, marker=mk, facecolor=col, edgecolor='white',
-                   linewidth=1.8, zorder=7, label=f"{label} (med {t_med:.2f} s, {c_med:.1f}%)")
-        ax.scatter([t_med], [c_med], s=145, marker=mk, facecolor='none', edgecolor=edge_col,
-                   linewidth=0.9, zorder=8)
+    ax1.bar(x_pos, med_c, width=0.58, color=cols, edgecolor=edge_cols, linewidth=1.2, alpha=0.93)
+    ax1.errorbar(x_pos, med_c,
+                 yerr=[[m - q25 for m, q25 in zip(med_c, q25_c)],
+                       [q75 - m for m, q75 in zip(med_c, q75_c)]],
+                 fmt='none', ecolor='#111111', elinewidth=2.0, capsize=5, capthick=1.8, zorder=5)
+    for xp, m in zip(x_pos, med_c):
+        ax1.text(xp, 36.0, f"{m:.1f}%", ha='center', va='center',
+                 fontsize=12.5, fontweight='bold', color='white')
 
-    sp_t_med, sp_c_med = np.median(sp_times), np.median(sp_cov)
-    fc_t_med, fc_c_med = np.median(fcw_times), np.median(fcw_cov)
-    y_arrow = max(sp_c_med, fc_c_med) + 6.8
-    ax.annotate('', xy=(sp_t_med * 1.06, y_arrow), xytext=(fc_t_med * 0.94, y_arrow),
-                arrowprops=dict(arrowstyle='<->', color='#333333', lw=1.5, shrinkA=0, shrinkB=0), zorder=9)
-    ax.plot([sp_t_med, sp_t_med], [sp_c_med + 1.5, y_arrow + 0.8], ls=':', lw=1.0, color='#555555', zorder=4)
-    ax.plot([fc_t_med, fc_t_med], [fc_c_med + 1.5, y_arrow + 0.8], ls=':', lw=1.0, color='#555555', zorder=4)
-    ax.text(np.sqrt(sp_t_med * fc_t_med), y_arrow + 1.1, '18× faster  (Δ median < 1%)',
-            ha='center', va='bottom', fontsize=11, fontweight='bold', color='#222222',
-            bbox=dict(boxstyle='round,pad=0.22', facecolor='white', edgecolor='none', alpha=0.85), zorder=10)
+    top_c = max(q75_c)
+    add_bracket(ax1, 0, 1, top_c + 3.5, 2.6, sig_cov_fc, lw=1.5, fontsize=16)
+    add_bracket(ax1, 0, 2, top_c + 12.0, 2.6, sig_cov_sw, lw=1.5, fontsize=16)
 
-    ax_in = ax.inset_axes([0.55, 0.10, 0.41, 0.30])
-    tot_hrs = [sp_times.sum() / 3600.0, sw_times.sum() / 3600.0, fcw_times.sum() / 3600.0]
-    ax_in.barh([2, 1, 0], tot_hrs, height=0.58, color=['#076d6d', '#08306b', '#5aae61'],
-               edgecolor='#222222', linewidth=0.7)
-    ax_in.set_yticks([2, 1, 0])
-    ax_in.set_yticklabels(['SPECTRA', 'Swiftcore', 'Fastcore'], fontsize=9.5, fontweight='bold')
-    ax_in.set_xlabel('Total time, 1,479 CSMs (h)', fontsize=9, fontweight='bold')
-    ax_in.set_xlim(0, max(tot_hrs) * 1.36)
-    ax_in.tick_params(axis='x', labelsize=8.5)
-    ax_in.set_facecolor('#fafafa')
-    sns.despine(ax=ax_in)
-    for y_pos, val, tv in zip([2, 1, 0], tot_hrs, [f"{sp_times.sum()/60:.0f} min", f"{tot_hrs[1]:.1f} h", f"{tot_hrs[2]:.1f} h"]):
-        ax_in.text(val + 0.18, y_pos, tv, va='center', ha='left', fontsize=8.8, fontweight='bold', color='#222222')
+    ax1.set_title('Hallmark recovery', fontsize=15, fontweight='bold', pad=10)
+    ax1.set_xticks(x_pos)
+    ax1.set_xticklabels(methods, fontsize=13, fontweight='bold')
+    ax1.set_ylim(0, 105)
+    ax1.set_yticks([0, 25, 50, 75, 100])
+    ax1.set_ylabel('% of 135 reactions (median ± IQR)', fontsize=12.5, fontweight='bold')
+    ax1.tick_params(axis='y', labelsize=12)
+    ax1.grid(axis='y', linestyle='--', color='grey', alpha=0.22)
+    sns.despine(ax=ax1)
 
-    ax.set_xscale('log')
-    ax.set_xlim(0.22, 62.0)
-    ax.set_ylim(42.0, 96.0)
-    ax.set_xticks([0.3, 0.5, 1, 2, 5, 10, 20, 50])
-    ax.get_xaxis().set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:g}"))
-    ax.get_xaxis().set_minor_formatter(mticker.NullFormatter())
-    ax.grid(True, which='major', linestyle='--', color='grey', alpha=0.22, zorder=0)
-    sns.despine(ax=ax)
-    ax.set_xlabel('Extraction runtime per CCLE model (s, log scale)', fontsize=13, fontweight='bold', labelpad=6)
-    ax.set_ylabel('Cancer hallmark recovery (% of 135)', fontsize=13, fontweight='bold', labelpad=6)
-    ax.tick_params(axis='both', labelsize=11)
-    ax.legend(loc='lower left', frameon=True, facecolor='white', framealpha=0.94,
-              edgecolor='#dddddd', fontsize=10.2, handletextpad=0.5, borderpad=0.45)
+    rt_list = [sp_t, fc_t, sw_t]
+    med_t = [np.median(v) for v in rt_list]
+    q25_t = [np.percentile(v, 25) for v in rt_list]
+    q75_t = [np.percentile(v, 75) for v in rt_list]
 
-    plt.tight_layout()
+    ax2.bar(x_pos, med_t, width=0.58, color=cols, edgecolor=edge_cols, linewidth=1.2, alpha=0.93)
+    ax2.errorbar(x_pos, med_t,
+                 yerr=[[m - q25 for m, q25 in zip(med_t, q25_t)],
+                       [q75 - m for m, q75 in zip(med_t, q75_t)]],
+                 fmt='none', ecolor='#111111', elinewidth=2.0, capsize=5, capthick=1.8, zorder=5)
+
+    tot_labels = ['1.0 s\n(26 min)', '18.0 s\n(7.8 h)', '3.5 s\n(1.5 h)']
+    for xp, m, q75, lbl in zip(x_pos, med_t, q75_t, tot_labels):
+        if xp == 1:
+            ax2.text(xp, 8.2, lbl, ha='center', va='center',
+                     fontsize=11.5, fontweight='bold', color='#112b11', linespacing=1.15)
+        else:
+            ax2.text(xp, q75 + 0.9, lbl, ha='center', va='bottom',
+                     fontsize=11.2, fontweight='bold', color='#1f1f1f', linespacing=1.12)
+
+    top_t = max(q75_t)
+    add_bracket(ax2, 0, 1, top_t + 1.3, 0.85, sig_rt_fc, lw=1.5, fontsize=16)
+    add_bracket(ax2, 0, 2, top_t + 4.2, 0.85, sig_rt_sw, lw=1.5, fontsize=16)
+
+    ax2.set_title('Extraction runtime', fontsize=15, fontweight='bold', pad=10)
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(methods, fontsize=13, fontweight='bold')
+    ax2.set_ylim(0, 29.0)
+    ax2.set_yticks([0, 5, 10, 15, 20, 25])
+    ax2.set_ylabel('Time per CSM, s (median ± IQR)', fontsize=12.5, fontweight='bold')
+    ax2.tick_params(axis='y', labelsize=12)
+    ax2.grid(axis='y', linestyle='--', color='grey', alpha=0.22)
+    sns.despine(ax=ax2)
+
+    plt.tight_layout(w_pad=1.6)
     plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     plt.close()
@@ -142,9 +157,9 @@ def plot_pareto_from_metrics(df, out_pdf, out_png):
 if __name__ == '__main__':
     metrics_csv = os.path.join(HERE, 'ccle_1479_size_and_hallmark_metrics.csv')
     df = pd.read_csv(metrics_csv)
-    plot_pareto_from_metrics(
+    plot_fig5c_from_metrics(
         df,
         os.path.join(VIS_DIR, 'cancer_pareto_speed_coverage.pdf'),
         os.path.join(VIS_DIR, 'cancer_pareto_speed_coverage.png'),
     )
-    print("Updated Figure 5c Pareto speed-coverage plots in", VIS_DIR)
+    print("Updated Figure 5c in", VIS_DIR)
