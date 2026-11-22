@@ -28,8 +28,11 @@ RandomReactionRemovalAGORA/GapfilledModels_DC_40
 RandomReactionRemovalAGORA/GapfilledModels_DC_50
 
 BuildCancerModels/DepMapModels_Recon/fastcore
+BuildCancerModels/DepMapModels_Recon/fastcore_weighted_chunks
 BuildCancerModels/DepMapModels_Recon/sprintcore
+BuildCancerModels/DepMapModels_Recon/spectra
 BuildCancerModels/DepMapModels_Recon/swiftcore
+BuildCancerModels/flux_sampling/raw_chains
 
 BuildCancerModels/DepMapModels_Recon/DepMapData.mat
 BuildCancerModels/DepMapModels_Recon/Results_BuildDepMapModels.mat
@@ -64,3 +67,5 @@ gapFilledAGORA_DB/test_links.py
 Verify_new_reactions_AGORA_using_DL/results/
 
 .DS_Store
+__pycache__/
+*.pyc

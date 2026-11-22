@@ -63,23 +63,24 @@ for j =1:length(contexts)
     maxFlux_diseased_met=maxFlux_diseased(rxnids_diseased);
     minFlux_diseased_met=minFlux_diseased(rxnids_diseased);
     %%
-    fluxspanrationew0=[];
+    fluxspanrationew = nan(length(commonrxns), 1);
     for i = 1:length(commonrxns)
-	    %if maxFlux_diseased_met(i) > minFlux_diseased_met(i) && maxFlux_normal_met(i) > minFlux_normal_met(i); 
-         if maxFlux_diseased_met(i) ~= maxFlux_normal_met(i) && minFlux_diseased_met(i) <= minFlux_normal_met(i);
-	        fluxspanrationew0(i)=(maxFlux_diseased_met(i) - minFlux_diseased_met(i))./(maxFlux_normal_met(i) - minFlux_normal_met(i));
-         elseif maxFlux_diseased_met(i) == maxFlux_normal_met(i) && minFlux_diseased_met(i) == minFlux_normal_met(i);
-            fluxspanrationew0(i)=0;
-	    %else fluxspanrationew0(i)=(maxFlux_diseased(i) - minFlux_diseased(i))./maxFlux_normal(i);
+        span_c = maxFlux_diseased_met(i) - minFlux_diseased_met(i);
+        span_n = maxFlux_normal_met(i) - minFlux_normal_met(i);
+        if span_n > 0 && isfinite(span_c / span_n)
+            fluxspanrationew(i) = span_c / span_n;
         end
     end
-    fluxspanrationew=[fluxspanrationew0]';
-    %% reactions
-    Downregulated_disease =commonrxns(find((fluxspanrationew~=0 & isfinite(fluxspanrationew) & ~isnan(fluxspanrationew) & fluxspanrationew<=0.5 & fluxspanrationew>=0.01)));
-    Upregulated_disease = commonrxns(fluxspanrationew~=0 & isfinite(fluxspanrationew) & ~isnan(fluxspanrationew) & fluxspanrationew>=2 & fluxspanrationew<20000.0);
+    %% reactions (directional maxFlux check + FSR thresholds matching Methods Section 4.10)
+    is_down = isfinite(fluxspanrationew) & (maxFlux_diseased_met < maxFlux_normal_met) & ...
+              (fluxspanrationew <= 0.5) & (fluxspanrationew >= 0.01);
+    is_up   = isfinite(fluxspanrationew) & (maxFlux_diseased_met > maxFlux_normal_met) & ...
+              (fluxspanrationew >= 2.0) & (fluxspanrationew < 20000.0);
+    Downregulated_disease = commonrxns(is_down);
+    Upregulated_disease   = commonrxns(is_up);
     %% fsr values
-    fsr_Downregulated_disease=fluxspanrationew(find((fluxspanrationew~=0 & isfinite(fluxspanrationew) & ~isnan(fluxspanrationew) & fluxspanrationew<=0.5 & fluxspanrationew>=0.01)));
-    fsr_Upregulated_disease=fluxspanrationew(find((fluxspanrationew~=0 & isfinite(fluxspanrationew) & ~isnan(fluxspanrationew) & fluxspanrationew>=2& fluxspanrationew<20000.0)));
+    fsr_Downregulated_disease = fluxspanrationew(is_down);
+    fsr_Upregulated_disease   = fluxspanrationew(is_up);
     %% upregulated reactions
     Upregulated_disease_ids = findRxnIDs(model_normal.m,Upregulated_disease);
     Upregulated_disease_names=model_normal.m.rxnNames(Upregulated_disease_ids);
@@ -106,9 +107,25 @@ for j =1:length(contexts)
     uprxns=ans;
     writetable(Upregulated_disease_details,'fsr_up_2025_checked_2.xlsx','Sheet',contexts{j,1});
     writetable(Down_disease_details,'fsr_down_2025_checked_2.xlsx','Sheet',contexts{j,1});
-    clear fluxspanrationew0 fluxspanrationew
-    diffids=findRxnIDs(model_diseased.m,[Downregulated_disease;Upregulated_disease]);
-    resultCell = FEA(model_diseased.m,diffids,'subSystems');
-    featable=table(resultCell)
-    writetable(featable,'fea_2025_checked_2.xlsx','Sheet',contexts{j,1});
+    clear fluxspanrationew
+    diffids = findRxnIDs(model_diseased.m, [Downregulated_disease; Upregulated_disease]);
+    diffids = diffids(diffids > 0);
+    % Upper-tail one-sided hypergeometric Flux Enrichment Analysis with Benjamini-Hochberg FDR
+    allSubs = string(model_diseased.m.subSystems);
+    M_tot = numel(allSubs);
+    N_sel = numel(diffids);
+    [hitSubs, ~, ic] = unique(allSubs(diffids));
+    k_hits = accumarray(ic, 1);
+    p_raw = zeros(numel(hitSubs), 1);
+    K_tot = zeros(numel(hitSubs), 1);
+    for s_idx = 1:numel(hitSubs)
+        K_tot(s_idx) = sum(allSubs == hitSubs(s_idx));
+        p_raw(s_idx) = hygecdf(k_hits(s_idx) - 1, M_tot, K_tot(s_idx), N_sel, 'upper');
+    end
+    [p_sorted, ord] = sort(p_raw);
+    m_tests = numel(p_sorted);
+    fdr_sorted = min(1, cummin((p_sorted .* m_tests ./ (1:m_tests)'), 'reverse'));
+    featable = table(hitSubs(ord), p_sorted, fdr_sorted, k_hits(ord), K_tot(ord), ...
+        'VariableNames', {'Pathway', 'P_value', 'Adjusted_P_value', 'Dysregulated_rxns', 'Pathway_rxns_in_model'});
+    writetable(featable, 'fea_2025_checked_2.xlsx', 'Sheet', contexts{j,1});
 end

@@ -1,0 +1,56 @@
+context,group,status,k,K,expected,pub_p_adj,correct_p_adj,direction
+Brain,Exchange/demand reaction,published-only,3,1103,25.55,2.9569773710119465e-08,0.9999999996010107,DEPLETED
+Brain,Fatty acid oxidation,published-only,23,843,19.53,0.007792005783136715,0.4753179073767096,enriched
+Brain,Folate metabolism,published-only,4,41,0.95,0.015938194873056574,0.06691590397175888,enriched
+Brain,Glycosphingolipid metabolism,published-only,6,79,1.83,0.007792005783136715,0.05167821683723773,enriched
+Brain,Purine synthesis,published-only,2,11,0.25,0.04675397445870574,0.10516477367144379,enriched
+Kidney,Exchange/demand reaction,published-only,5,1076,27.37,5.94595104761565e-11,0.9999999946146303,DEPLETED
+Kidney,Starch and sucrose metabolism,published-only,4,36,0.92,0.03842263488224947,0.07596757346237007,enriched
+Kidney,"Transport, lysosomal",published-only,7,110,2.8,0.0386198716311377,0.11438866815557198,enriched
+Liver,Drug metabolism,published-only,1,311,12.83,0.006028218017087998,1.0,DEPLETED
+Liver,Eicosanoid metabolism,published-only,6,84,3.46,0.028043253281326952,0.3672435639859327,enriched
+Liver,Exchange/demand reaction,published-only,3,1068,44.04,2.5082761983827437e-15,1.0,DEPLETED
+Liver,Fatty acid oxidation,published-only,36,693,28.58,1.4440833848428939e-10,0.2737716964964821,enriched
+Liver,Glycerophospholipid metabolism,published-only,12,228,9.4,0.014805938404951006,0.45249746987264666,enriched
+Liver,Miscellaneous,published-only,7,107,4.41,0.028043253281326952,0.3672435639859327,enriched
+Liver,N-glycan degradation,published-only,2,7,0.29,0.028043253281326952,0.13960905274010454,enriched
+Liver,Nucleotide interconversion,published-only,6,94,3.88,0.04040416540323487,0.4094155431172143,enriched
+Liver,Phenylalanine metabolism,published-only,3,21,0.87,0.028188368933793385,0.2110554926311903,enriched
+Liver,Sphingolipid metabolism,published-only,9,92,3.79,0.0011308253200503137,0.07425768234159834,enriched
+Liver,Steroid metabolism,published-only,5,69,2.85,0.04040416540323487,0.3672435639859327,enriched
+Liver,"Transport, endoplasmic reticular",published-only,11,221,9.11,0.028043253281326952,0.5107323817541438,enriched
+Liver,"Transport, lysosomal",published-only,8,101,4.17,0.007660275986981276,0.2110554926311903,enriched
+Liver,"Transport, mitochondrial",published-only,11,225,9.28,0.028043253281326952,0.5107323817541438,enriched
+Liver,Urea cycle,published-only,4,24,0.99,0.007702626030857203,0.07839807007274034,enriched
+Lung,Cholesterol metabolism,published-only,1,174,5.42,0.01388120908820137,0.9999999990712356,DEPLETED
+Lung,Drug metabolism,published-only,2,310,9.65,0.00035763651720637884,0.9999999990712356,DEPLETED
+Lung,Exchange/demand reaction,published-only,3,797,24.81,3.4886260477253025e-18,0.9999999990712356,DEPLETED
+Eye,Bile acid synthesis,published-only,1,117,9.1,0.03184749477320263,1.0,DEPLETED
+Eye,Cholesterol metabolism,published-only,3,223,17.35,0.004821539382363682,1.0,DEPLETED
+Eye,Exchange/demand reaction,published-only,4,1097,85.36,8.204216472657409e-34,1.0,DEPLETED
+Eye,Glycosphingolipid metabolism,published-only,10,67,5.21,0.00553415789479611,0.1354864500089258,enriched
+Eye,"Transport, extracellular",published-only,59,1718,133.69,0.0,1.0,DEPLETED
+Eye,"Transport, lysosomal",published-only,10,97,7.55,0.04852859380029118,0.5856333043260994,enriched
+Pancreas,Cholesterol metabolism,published-only,1,235,7.52,0.0010010817068497743,0.9999999999995218,DEPLETED
+Pancreas,Exchange/demand reaction,published-only,4,1081,34.58,1.3576644709505073e-24,0.9999999999995218,DEPLETED
+Pancreas,"Transport, extracellular",published-only,33,1803,57.68,0.0,0.9999999999995218,DEPLETED
+Pancreas,Starch and sucrose metabolism,correct-only,5,37,1.18,0.06497505959112516,0.04132729920420502,enriched
+Prostate,Exchange/demand reaction,published-only,1,1158,26.67,1.861702489914834e-12,0.9999999999997579,DEPLETED
+Prostate,Fatty acid oxidation,published-only,30,898,20.68,6.32032297976669e-05,0.12156904695501573,enriched
+Breast,Cholesterol metabolism,published-only,2,230,6.87,0.037301846537484584,0.9999999999998813,DEPLETED
+Breast,Drug metabolism,published-only,1,313,9.34,0.0006596952428891095,0.9999999999998813,DEPLETED
+Breast,Exchange/demand reaction,published-only,3,1112,33.2,8.224902368748671e-25,0.9999999999998813,DEPLETED
+Breast,"Transport, extracellular",published-only,30,1413,42.18,0.0,0.9999999999998813,DEPLETED
+Ovary,Cholesterol metabolism,published-only,1,230,5.69,0.01453831153751749,0.9999999999439974,DEPLETED
+Ovary,Drug metabolism,published-only,2,318,7.87,0.005617328612773459,0.9999999999439974,DEPLETED
+Ovary,Exchange/demand reaction,published-only,3,1109,27.43,3.2337939587953462e-18,0.9999999999439974,DEPLETED
+Ovary,"Transport, extracellular",published-only,22,1837,45.44,0.0,0.9999999999439974,DEPLETED
+Biliary Tract,Cholesterol metabolism,published-only,2,177,13.21,0.032465596660931774,1.0,DEPLETED
+Biliary Tract,Exchange/demand reaction,published-only,8,813,60.68,1.59449979616194e-11,1.0,DEPLETED
+Biliary Tract,Fatty acid oxidation,published-only,15,802,59.86,4.161349788283747e-06,1.0,DEPLETED
+Biliary Tract,Fatty acid synthesis,published-only,1,246,18.36,0.00047560424746675403,1.0,DEPLETED
+Biliary Tract,Glycosphingolipid metabolism,published-only,12,81,6.05,0.0001488733587937521,0.06507247383612558,enriched
+Biliary Tract,Glyoxylate and dicarboxylate metabolism,published-only,3,10,0.75,0.016750488118548974,0.12326993541384529,enriched
+Biliary Tract,"Transport, extracellular",published-only,47,1441,107.55,0.0,1.0,DEPLETED
+Biliary Tract,"Transport, mitochondrial",published-only,17,241,17.99,0.019258871269947977,1.0,DEPLETED
+Biliary Tract,"Transport, nuclear",published-only,6,48,3.58,0.022823995433230215,0.43513305180933337,enriched

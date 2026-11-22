@@ -1,0 +1,11 @@
+context,fsr_pathways,sampling_pathways,shared,jaccard,fsr_only,sampling_only
+Brain,6,29,3,0.09375,Eicosanoid metabolism; Fructose and mannose metabolism; Heme synthesis,Aminosugar metabolism; Beta-Alanine metabolism; Bile acid synthesis; C
+Kidney,6,19,2,0.08695652173913043,Fatty acid synthesis; Glycosphingolipid metabolism; Hyaluronan metabol,Bile acid synthesis; Fructose and mannose metabolism; Glycerophospholi
+Liver,7,23,1,0.034482758620689655,Chondroitin sulfate degradation; Fatty acid synthesis; Glycosphingolip,Aminosugar metabolism; Bile acid synthesis; Citric acid cycle; Fatty a
+Lung,6,12,1,0.058823529411764705,Fatty acid oxidation; Glycosphingolipid metabolism; Heme degradation; ,Chondroitin sulfate degradation; Glycerophospholipid metabolism; Glyci
+Eye,12,19,4,0.14814814814814814,Blood group synthesis; Chondroitin synthesis; Eicosanoid metabolism; H,Aminoacyl-tRNA biosynthesis; Bile acid synthesis; Galactose metabolism
+Pancreas,5,25,1,0.034482758620689655,Eicosanoid metabolism; Fatty acid oxidation; Fatty acid synthesis; Gly,Aminosugar metabolism; Bile acid synthesis; CoA synthesis; Glutamate m
+Prostate,6,23,1,0.03571428571428571,CoA catabolism; Drug metabolism; Fatty acid synthesis; Glyoxylate and ,Aminosugar metabolism; Bile acid synthesis; C5-branched dibasic acid m
+Breast,8,23,2,0.06896551724137931,Bile acid synthesis; Eicosanoid metabolism; Fatty acid oxidation; O-gl,Aminoacyl-tRNA biosynthesis; Androgen and estrogen synthesis and metab
+Ovary,4,31,1,0.029411764705882353,Eicosanoid metabolism; Fatty acid oxidation; Steroid metabolism,Aminosugar metabolism; Arginine and proline metabolism; Beta-Alanine m
+Biliary Tract,11,24,2,0.06060606060606061,Blood group synthesis; Chondroitin synthesis; Heme synthesis; Heparan ,Aminosugar metabolism; Androgen and estrogen synthesis and metabolism;

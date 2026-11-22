@@ -36,9 +36,10 @@ for i=1:size(RxnImp,2)
     % core reactions are those with RxnImp more than 1
     core = find(curr_core>=1);
     
-    % FASTCORE model
+    % FASTCORE (weighted) model using LocalGini non-core penalty weights
     tic
-    m = fastcore(model,core,1e-4);
+    A_fcw = fastCoreWeighted(core, model, weights, 1e-4);
+    m = removeRxns(model, model.rxns(setdiff(1:numel(model.rxns), A_fcw)));
     t = toc;
     FC_times(i) = t;
     save(['./fastcore/',context{i}],"m")

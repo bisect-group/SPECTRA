@@ -1,0 +1,11 @@
+context,query_size,groups_hit,same_groups,same_k,same_K,pub_sig,correct_sig,lost,gained,pub_sig_but_depleted
+Brain,185,37,True,True,True,11,6,5,0,1
+Kidney,194,42,True,True,True,9,6,3,0,1
+Liver,297,45,True,True,True,22,7,15,0,2
+Lung,201,36,True,True,True,9,6,3,0,3
+Eye,597,53,True,True,True,18,12,6,0,4
+Pancreas,255,34,True,True,True,7,5,3,1,3
+Prostate,194,37,True,True,True,8,6,2,0,1
+Breast,225,38,True,True,True,12,8,4,0,4
+Ovary,196,32,True,True,True,8,4,4,0,4
+Biliary Tract,504,48,True,True,True,20,11,9,0,6
