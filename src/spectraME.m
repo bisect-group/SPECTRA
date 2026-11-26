@@ -1,109 +1,116 @@
-function [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
+function [Model, LPS, selection] = spectraME(model, coreRxns, tol, consType, weights, nSol, altSolMethod, probType, solveTime, remGene, prevSols, seed, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
 % USAGE:
-%   [Model,LPS,selection] = spectraME(model,coreRxns,tol,consType,weights,nSol,altSolMethod,probType,solveTime,remGene,prevSols,seed,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
+%   [Model, LPS, selection] = spectraME(model, coreRxns, tol, consType, weights, nSol, altSolMethod, probType, solveTime, remGene, prevSols, seed, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
 %
 % INPUTS:
-%   model:    COBRA model structure. The model has to be a consistent model
-%             (either topologically or stoichiometrically). Run spectraCC
-%             before running spectraME.
-%   coreRxns: Indices of reactions that has to be present in the final
-%             model
+%   model:           Consistent COBRA model structure (run spectraCC first, or
+%                    use spectraCCME on inconsistent models).
+%   coreRxns:        Core reactions required in the extracted model (numeric
+%                    indices, logical mask, or reaction ID cell/string array).
 %
 % OPTIONAL INPUTS:
-%   tol:          Tolerance level (minimum absolute flux that has to be carried
-%                 by all the reactions in the Model) (Default: 1e-4)
-%   consType:     Type of constraints to apply. Either 'topology' or
-%                 'stoichiometry' constraints. (Default:'stoichiometry')
-%   weights:      Weights for the reactions in the model. (Default: ones)
-%   nSol:         Number of alternative solutions required (Default: 1)
-%   altSolMethod: Method to find the alternate solutions.
-%                 accepted values: 'coreDirection', 'pathwayExclusion'.
-%                 Note: 'pathwayExclusion' works only for MILP problems
-%                 (Default: 'coreDirection')
-%   probType:     Which method to use to extract the final model.
-%                 Accepted values: 'minNetLP','minNetMILP','minNetDC','growthOptim','tradeOff'.
-%                 (Default: 'minNetLP')
-%   solveTime:    maximum runtime for solving MILP problem (Default: 7200s)
-%   remGene:      Bool value indicating whether to remove the unused genes
-%                 or not (Default: 0 (doesn't remove the unused genes))
-%   prevSols:     A cell of previously obtained solutions that should not
-%                 be a part of any new solutions (works only for MILP probType)
-%   seed:         Seed for the random coefficients used by the direction
-%                 phase, making the result reproducible across runs. Leave
-%                 it out to draw them unseeded, as every earlier version of
-%                 this function did. (Default: none)
-%   indicatorGroups: Which reactions share a binary in the MILP, as either
-%                 a cell array of reaction index vectors (one per group) or
-%                 a cell array of reaction IDs (one binary each, every other
-%                 free reaction kept outright). Naming a handful of
-%                 reactions is what makes a selection problem tractable on a
-%                 large model: one binary per organism of a community, say,
-%                 rather than one per reaction. Grouping several together
-%                 keeps or drops them as one, which is how a requirement
-%                 holding in several conditions at once is expressed. Works
-%                 only for 'minNetMILP' and 'tradeOff'. (Default: one binary
-%                 per free reaction)
-%   inclusionCutoff: Absolute flux at which a reaction counts as included.
-%                 Handed to the formulation. (Default: its own, tol*1e-7)
-%   solverTol:    Feasibility, optimality and integrality tolerances for the
-%                 mixed-integer solve, asked of the solve itself rather than
-%                 set globally. Loosen it only for a large problem that will
-%                 not converge, and read inclusionCutoff's note before you
-%                 do. (Default: 1e-9, the tightest the solvers accept)
-%   useCoupling:  Whether to apply the model's coupling constraints (the C,
-%                 d and dsense fields coupleRxnList2Rxn writes). Off by
-%                 default, so the problem is built from S, lb and ub alone,
-%                 which is how flux consistency is conventionally defined
-%                 and what a comparison against fastcc or FASTERCC has to
-%                 answer. Switch it on when the parameterisation is the
-%                 point, as a community model's coupling is: gapfillCommunity
-%                 and minimalMicrobiome both do. (Default: false)
+%   tol:             Minimum absolute flux required for core reactions (Default: 1e-4).
+%   consType:        'stoichiometry' (S*v = 0, default) or 'topology' (S*v >= 0).
+%   weights:         Reaction weights (Default: ones(n, 1)). Non-negative costs
+%                    for 'minNetLP', 'minNetMILP', and 'optimBiomass'; any
+%                    signed real numbers (positive rewards, negative penalties)
+%                    for 'tradeOff'.
+%   nSol:            Number of alternative solutions (Default: 1).
+%   altSolMethod:    Method to generate alternative solutions:
+%                    'coreDirection' (default for LP formulations 'minNetLP'
+%                    and 'optimBiomass') or 'pathwayExclusion' (default for
+%                    MILP formulations 'minNetMILP' and 'tradeOff'; MILP only).
+%   probType:        Network inference formulation:
+%                    'minNetLP' (default), 'minNetMILP', 'tradeOff', or
+%                    'optimBiomass'.
+%   solveTime:       Time limit in seconds for MILP solves (Default: 7200).
+%   remGene:         Remove unused genes from extracted model (Default: 0).
+%   prevSols:        Previously excluded binary solution sets for MILP (Default: {}).
+%   seed:            Optional RNG seed for reproducibility (Default: []).
+%   indicatorGroups: Optional MILP binary indicator groups (Default: {}).
+%   inclusionCutoff: Minimum absolute flux to retain a non-core reaction (Default: derived).
+%   solverTol:       LP/MILP feasibility & optimality (and integrality) tolerance,
+%                    or 'default' (Default: 1e-9).
+%   useCoupling:     Honor coupling constraints model.C, d, dsense (Default: false).
 %
 % OUTPUTS:
-%   Model:     The consistent model with no blocked reactions and has
-%              all the core reactions in them (If nSol==1). A cell 
-%              consisting of consistent models in them (If nSol > 1)
-%   LPS:       Number of LPs used to get ConsModel, if probType is 'minNetLP'
-%   selection: What the MILP's binaries decided, as a structure with fields
-%              groups (the resolved groups, as index vectors), selected (a
-%              logical, one entry per group), selectedRxns (the IDs of the
-%              reactions in the groups that are on) and ungoverned (a
-%              logical over the reactions, true where no binary governed the
-%              reaction and it was therefore kept). Empty for a formulation
-%              with no binaries. Reading the membership off the model is not
-%              equivalent: a reaction whose binary is off can still carry a
-%              trace of flux, and one that is on need not carry any.
+%   Model:           Extracted consistent model (or cell array when nSol > 1).
+%   LPS:             Number of LPs solved (or cell array when nSol > 1).
+%   selection:       Group-selection struct when MILP binaries are used.
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
 
-
 if ~exist('tol', 'var') || isempty(tol)
-    tol=1e-4;     
+    tol = 1e-4;
 end
-if ~exist('weights', 'var') || isempty(weights)
-    weights = ones(numel(model.rxns),1);  
+if ~isnumeric(tol) || ~isscalar(tol) || ~isfinite(tol) || tol <= 0
+    error('spectraME:badTol', 'tol must be a positive finite scalar.');
 end
-if ~exist('nSol', 'var') || isempty(nSol)
-    nSol=1;  
-end
-if ~exist('probType', 'var') || isempty(probType)
-    probType='minNetLP';  
-end
-if ~exist('remGene', 'var') || isempty(remGene)
-    remGene=0;  
-end
-if ~exist('prevSols', 'var') || isempty(prevSols)
-    prevSols={};
-end
+tol = double(tol);
+
+[~, n] = size(model.S);
 if ~exist('consType', 'var') || isempty(consType)
-    consType='stoichiometry';
+    consType = 'stoichiometry';
+end
+if strcmp(consType, 'stoichiometry')
+    steadystate = 1;
+elseif strcmp(consType, 'topology')
+    steadystate = 0;
+else
+    error('spectraME:badConsType', ...
+        'consType must be ''stoichiometry'' or ''topology'', not ''%s''.', consType);
+end
+
+if ~exist('probType', 'var') || isempty(probType)
+    probType = 'minNetLP';
+end
+if ~ismember(probType, {'minNetLP', 'minNetMILP', 'tradeOff', 'optimBiomass'})
+    error('spectraME:badProbType', ...
+        'probType must be ''minNetLP'', ''minNetMILP'', ''tradeOff'', or ''optimBiomass'', not ''%s''.', probType);
+end
+
+isMilpProb = ismember(probType, {'minNetMILP', 'tradeOff'});
+if ~exist('nSol', 'var') || isempty(nSol)
+    nSol = 1;
 end
 if ~exist('altSolMethod', 'var') || isempty(altSolMethod)
-    altSolMethod='coreDirection';
+    if isMilpProb
+        altSolMethod = 'pathwayExclusion';
+    else
+        altSolMethod = 'coreDirection';
+    end
 end
-% Seeding is opt-in. Without a seed the coefficients are drawn exactly as
-% before, so published results stay reproducible.
+if nSol > 1
+    if ~ismember(altSolMethod, {'coreDirection', 'pathwayExclusion'})
+        error('spectraME:badAltSolMethod', ...
+            'altSolMethod must be ''coreDirection'' or ''pathwayExclusion'', not ''%s''.', altSolMethod);
+    end
+    if strcmp(altSolMethod, 'pathwayExclusion') && ~isMilpProb
+        error('spectraME:pathwayExclusionNeedsMilp', ...
+            'altSolMethod ''pathwayExclusion'' requires ''minNetMILP'' or ''tradeOff'', not ''%s''.', probType);
+    end
+end
+
+if ~exist('weights', 'var') || isempty(weights)
+    weights       = ones(n, 1);
+    userGaveWeights = false;
+else
+    if ~isnumeric(weights) || any(~isfinite(weights(:)))
+        error('spectraME:badWeights', 'weights must be finite numeric values.');
+    end
+    weights       = double(weights(:));
+    userGaveWeights = true;
+end
+if ~exist('solveTime', 'var') || isempty(solveTime)
+    solveTime = 7200;
+end
+if ~exist('remGene', 'var') || isempty(remGene)
+    remGene = 0;
+end
+if ~exist('prevSols', 'var') || isempty(prevSols)
+    prevSols = {};
+end
 if exist('seed', 'var') && ~isempty(seed)
     rng(seed);
 end
@@ -118,314 +125,484 @@ if ~exist('solverTol', 'var')
 end
 if ~exist('useCoupling', 'var') || isempty(useCoupling)
     useCoupling = false;
-end
-
-[~,n] = size(model.S);
-origModel = model;
-coreRxns = ismember(1:n,coreRxns)';
-IrR = model.ub<=0; % reactions irreversible in reverse direction
-temp = model.ub(IrR);
-model.S(:,IrR) = -model.S(:,IrR);
-% A coupling constraint is written over the same fluxes, so flipping a
-% reaction's column in S without flipping it in C would silently change
-% what the constraint says about that reaction.
-if isfield(model,'C') && ~isempty(model.C)
-    model.C(:,IrR) = -model.C(:,IrR);
-end
-model.ub(IrR) = -1*model.lb(IrR);
-model.lb(IrR) = -1*temp;
-rev = ones(n,1);
-rev(model.lb>=0) = 0;
-model.rev=rev;
-
-temp_core = coreRxns;
-flux = zeros(n,1);
-LPS=0;
-
-if strcmp(consType,'stoichiometry')
-    steadystate = 1;
-elseif strcmp(consType,'topology')
-    steadystate = 0;
 else
-    error('spectraME:badConsType', ...
-        ['consType must be ''stoichiometry'' or ''topology'', ' ...
-         'not ''%s''.'], consType);
+    useCoupling = logical(useCoupling);
 end
 
-% Indicator groups belong to the MILP formulations: they are groupings of
-% the binaries, and a formulation without binaries has nothing to group.
-[indicatorGroups, milpWeights] = resolveGroupArgument(indicatorGroups, ...
-    weights, model.rxns, probType);
-
-stalls = 0;
-while any(temp_core)
-    before = sum(temp_core);
-    rev_unsettled = model.rev & temp_core;
-    iterWeights = zeros(n,1);
-    iterWeights(rev_unsettled) = unifrnd(1,1.1,sum(rev_unsettled),1);
-    LPS = LPS+1;
-    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
-    assertCoreFeasible(flux1,sum(coreRxns),tol);
-    if sum(abs(flux))==0
-        flux = flux1;
-    else
-        c1=unifrnd(0.45,0.55,1);
-        flux = (c1*flux)+((1-c1)*flux1);
-    end
-    temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
-    if ~any(temp_core)
-        break
-    end
-    LPS = LPS+1;
-    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
-    assertCoreFeasible(flux2,sum(coreRxns),tol);
-    c1=unifrnd(0.45,0.55,1);
-    flux = (c1*flux)+((1-c1)*flux2);
-    temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
-    stalls = assertCoreProgress(temp_core,before,stalls,tol);
+% Validate indicatorGroups and weights
+[indicatorGroups, milpWeights] = localResolveGroupArgument( ...
+    indicatorGroups, weights, userGaveWeights, model.rxns, probType);
+if isempty(indicatorGroups) && numel(weights) ~= n
+    error('spectraME:badWeights', ...
+        'weights must have one entry per reaction (%d), got %d.', n, numel(weights));
+elseif ~isempty(indicatorGroups) && numel(milpWeights) ~= numel(indicatorGroups)
+    error('spectraME:groupWeightCount', ...
+        ['With indicatorGroups, weights must hold one entry per reaction (%d) ' ...
+         'or one entry per group (%d), got %d.'], n, numel(indicatorGroups), numel(weights));
+end
+if ~strcmp(probType, 'tradeOff') && (any(weights < 0) || any(milpWeights < 0))
+    error('spectraME:negativeWeights', ...
+        'weights must be non-negative for probType ''%s''; use ''tradeOff'' for signed weights.', probType);
 end
 
+% Validate solverTol and inclusionCutoff up front
+lockTol = localResolveLockTol(tol, solverTol, inclusionCutoff);
 
-direction = zeros(n,1);
-direction(coreRxns==1&flux>0) = 1;
-direction(coreRxns==1&flux<0) = -1;
+% Canonicalize reverse-only reactions (ub <= 0) on internal working copy
+origModel = model;
+coreMask  = localParseCoreMask(coreRxns, model.rxns, n);
 
-selected = [];
-if strcmp(probType,'minNetMILP')
-    if ~exist('solveTime', 'var') || isempty(solveTime)
-        solveTime=7200;     
-    end
-    % if the core reactions is empty. This will be further used as an initial
-    % solution for the minNetMILP
-    if sum(coreRxns)==0
-        sol = optimizeCbModel(model);
-        flux = sol.x;
-    end
-    [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
-elseif strcmp(probType,'minNetLP')
-    LPS = LPS+1;
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
-elseif strcmp(probType,'minNetDC')
-    [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
-elseif strcmp(probType,'growthOptim')
-    [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling,solverTol,inclusionCutoff);
-elseif strcmp(probType,'tradeOff')
-    if ~exist('solveTime', 'var') || isempty(solveTime)
-        solveTime=7200;     
-    end
-    % if the core reactions is empty. This will be further used as an initial
-    % solution for the tradeoff
-    if sum(coreRxns)==0
-        sol = optimizeCbModel(model);
-        flux = sol.x;
-    end
-    [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
+IrR = model.ub <= 0;
+tempUb = model.ub(IrR);
+model.S(:, IrR) = -model.S(:, IrR);
+if isfield(model, 'C') && ~isempty(model.C)
+    model.C(:, IrR) = -model.C(:, IrR);
+end
+model.ub(IrR) = -model.lb(IrR);
+model.lb(IrR) = -tempUb;
+model.lb  = full(double(model.lb(:)));
+model.ub  = full(double(model.ub(:)));
+model.rev = double(model.lb < 0);
+
+% =========================================================================
+% Stage 1: Core Direction Discovery (Skipped When Core Is Empty or All-Irrev)
+% =========================================================================
+[direction, witnessFlux, pass0FluxReady, dirLPs] = localDiscoverCoreDirections( ...
+    model, coreMask, weights, probType, tol, steadystate, useCoupling, ...
+    inclusionCutoff, solverTol, lockTol, false);
+
+LPS = dirLPs;
+
+% =========================================================================
+% Stage 2: Primary Network Extraction (j = 1)
+% =========================================================================
+[reacInd, extLPs, selected, stat] = localRunSingleExtraction( ...
+    model, direction, coreMask, weights, milpWeights, probType, tol, steadystate, ...
+    solveTime, witnessFlux, pass0FluxReady, prevSols, indicatorGroups, ...
+    inclusionCutoff, solverTol, useCoupling);
+LPS = LPS + extLPs;
+
+if isempty(reacInd) && any(coreMask) && isempty(prevSols)
+    localRaiseInfeasibleCore(sum(coreMask), tol);
 end
 
-flux = x(1:numel(model.rxns));
-Model = removeRxns(origModel, setdiff(origModel.rxns,origModel.rxns(reacInd)));
-if remGene
-    Model = removeUnusedGenes(Model);
-end
-selection = reportSelection(indicatorGroups,selected,model.rxns,direction);
+Model = localSubsetModel(origModel, reacInd, remGene);
+selection = localReportSelection(indicatorGroups, selected, model.rxns, direction);
 
-if nSol>1
+% =========================================================================
+% Alternative Solutions (nSol > 1)
+% =========================================================================
+if nSol > 1
     Model = {Model};
-    if strcmp(altSolMethod,'coreDirection')
-        LPS = {LPS};    
-        for j=2:nSol
-            LPS_ = 0;
-            temp_core = coreRxns;
-            flux = zeros(n,1);
-            stalls = 0;
-            while any(temp_core)
-                before = sum(temp_core);
-                LPS_ = LPS_+1;
-                r = randi(2);
-                rev_unsettled = model.rev & temp_core;
-                iterWeights = zeros(n,1);
-                iterWeights(rev_unsettled) = unifrnd(1,1.1,sum(rev_unsettled),1);
-                if r==1
-                    [flux1,~] = forward(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
-                else
-                    [flux1,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
-                end
-                assertCoreFeasible(flux1,sum(coreRxns),tol);
-                if sum(abs(flux))==0
-                    flux = flux1;
-                else
-                    c1=unifrnd(0.45,0.55,1);
-                    flux = (c1*flux)+((1-c1)*flux1);
-                end
-                temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
-                if ~any(temp_core)
-                    break
-                end
-                LPS_ = LPS_+1;
-                if r==1
-                    [flux2,~] = reverse(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
-                else
-                    [flux2,~] = forward(model,temp_core,tol,steadystate,useCoupling,solverTol,iterWeights);
-                end
-                assertCoreFeasible(flux2,sum(coreRxns),tol);
-                c1=unifrnd(0.45,0.55,1);
-                flux = (c1*flux)+((1-c1)*flux2);
-                temp_core(coreRxns==1 & abs(flux)>=tol*1e-1) = 0; 
-                stalls = assertCoreProgress(temp_core,before,stalls,tol);
-            end
-        
-            direction = zeros(n,1);
-            direction(coreRxns==1&flux>0) = 1;
-            direction(coreRxns==1&flux<0) = -1;
-            selected = [];
-            if strcmp(probType,'minNetMILP')
-                if ~exist('solveTime', 'var') || isempty(solveTime)
-                    solveTime=7200;
-                end
-                % if the core reactions is empty. This will be further used as an initial
-                % solution for the minNetMILP
-                if sum(coreRxns)==0
-                    sol = optimizeCbModel(model);
-                    flux = sol.x;
-                end
-                [reacInd,x,~,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol,useCoupling);
-            elseif strcmp(probType,'minNetLP')
-                LPS_ = LPS_+1;
-                [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
-            elseif strcmp(probType,'minNetDC')
-                [reacInd,x] = minNet(model,direction,weights,tol,steadystate,probType,[],[],{},{},inclusionCutoff,solverTol,useCoupling);
-            elseif strcmp(probType,'growthOptim')
-                [reacInd,x] = growthOptim(model,direction,weights,tol,steadystate,useCoupling,solverTol,inclusionCutoff);
-            elseif strcmp(probType,'tradeOff')
-                if ~exist('solveTime', 'var') || isempty(solveTime)
-                    solveTime=7200;
-                end
-                % if the core reactions is empty. This will be further used as an initial
-                % solution for the tradeoff
-                if sum(coreRxns)==0
-                    sol = optimizeCbModel(model);
-                    flux = sol.x;
-                end
-                [reacInd,x,~,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,flux,{},indicatorGroups,inclusionCutoff,solverTol,useCoupling);
-            end
-    
-            flux = x(1:numel(model.rxns));
-            Mod = removeRxns(origModel, setdiff(origModel.rxns,origModel.rxns(reacInd)));
-            if remGene
-                Mod = removeUnusedGenes(Mod);
-            end 
-            Model = [Model;Mod];
-            LPS = [LPS;LPS_];
+    if strcmp(altSolMethod, 'coreDirection')
+        % Skip duplicate solves when no core reaction can carry >= tol in both directions
+        canBoth = coreMask & (model.lb <= -lockTol) & (model.ub >= lockTol);
+        if ~any(canBoth)
+            Model = repmat(Model, nSol, 1);
+            LPS   = num2cell([LPS; zeros(nSol - 1, 1)]);
+            return;
         end
-    elseif strcmp(altSolMethod,'pathwayExclusion') % the problem has to be an milp problem
-        for j=2:nSol
+        LPS = {LPS};
+        for j = 2:nSol
+            [directionJ, witnessJ, ~, lpsDirJ] = localDiscoverCoreDirections( ...
+                model, coreMask, weights, probType, tol, steadystate, useCoupling, ...
+                inclusionCutoff, solverTol, lockTol, true);
+            [reacIndJ, lpsExtJ, selected] = localRunSingleExtraction( ...
+                model, directionJ, coreMask, weights, milpWeights, probType, tol, ...
+                steadystate, solveTime, witnessJ, [], {}, indicatorGroups, ...
+                inclusionCutoff, solverTol, useCoupling);
+            if isempty(reacIndJ) && any(coreMask)
+                localRaiseInfeasibleCore(sum(coreMask), tol);
+            end
+            ModJ  = localSubsetModel(origModel, reacIndJ, remGene);
+            Model = [Model; {ModJ}]; %#ok<AGROW>
+            LPS   = [LPS; {lpsDirJ + lpsExtJ}]; %#ok<AGROW>
+        end
+    elseif strcmp(altSolMethod, 'pathwayExclusion')
+        for j = 2:nSol
+            if isempty(selected) || ~any(selected) || (stat ~= 1 && stat ~= 3)
+                break;
+            end
             if isempty(indicatorGroups)
-                freeIdx = find(direction == 0);
-                prevSols = [prevSols;{freeIdx(selected)}];
+                freeIdx  = find(direction == 0);
+                prevSols = [prevSols; {freeIdx(selected)}]; %#ok<AGROW>
             else
-                prevSols = [prevSols;{find(selected)}];
+                prevSols = [prevSols; {find(selected)}]; %#ok<AGROW>
             end
-            if strcmp(probType,'minNetMILP')
-                [reacInd,~,stat,selected] = minNet(model,direction,milpWeights,tol,steadystate,probType,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
-            elseif strcmp(probType,'tradeOff')
-                [reacInd,~,stat,selected] = tradeOff(model,direction,milpWeights,tol,steadystate,solveTime,[],prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling);
+            [reacIndJ, ~, selected, stat] = localRunSingleExtraction( ...
+                model, direction, coreMask, weights, milpWeights, probType, tol, ...
+                steadystate, solveTime, [], [], prevSols, indicatorGroups, ...
+                inclusionCutoff, solverTol, useCoupling);
+            if stat ~= 1
+                break;
             end
-            if stat~=1
-                break
-            end
-            Mod = removeRxns(origModel, setdiff(origModel.rxns,origModel.rxns(reacInd)));
-            if remGene
-                Mod = removeUnusedGenes(Mod);
-            end
-            Model = [Model;Mod];
+            ModJ  = localSubsetModel(origModel, reacIndJ, remGene);
+            Model = [Model; {ModJ}]; %#ok<AGROW>
         end
     end
     if ~isempty(selected)
-        selection = reportSelection(indicatorGroups,selected,model.rxns,direction);
+        selection = localReportSelection(indicatorGroups, selected, model.rxns, direction);
+    end
+end
+end
+
+% =========================================================================
+% Stage 1: Core Direction Discovery (Zero Convex Combination, Smart Skips)
+% =========================================================================
+function [direction, lastFlux, pass0FluxReady, nLPs] = localDiscoverCoreDirections( ...
+    model, coreMask, weights, probType, tol, steadystate, useCoupling, ...
+    inclusionCutoff, solverTol, lockTol, isAltSol)
+
+n = numel(model.rxns);
+direction      = zeros(n, 1);
+lastFlux       = [];
+pass0FluxReady = [];
+nLPs           = 0;
+
+% Skip 1: Empty core set (even if positive lower bounds or coupling exist)
+if ~any(coreMask)
+    return;
+end
+
+% Classify core reactions by bound reachability at tol (0 LPs)
+canFwd = (model.ub >= lockTol);
+canRev = (model.lb <= -lockTol);
+
+% Fail immediately in 0 LPs if any core reaction's box bounds forbid +/-tol
+if any(coreMask & (~canFwd) & (~canRev))
+    localRaiseInfeasibleCore(sum(coreMask), tol);
+end
+
+onlyFwdCore = coreMask & canFwd & (~canRev);
+onlyRevCore = coreMask & (~canFwd) & canRev;
+twoWayCore  = coreMask & canFwd & canRev;
+
+direction(onlyFwdCore) = 1;
+direction(onlyRevCore) = -1;
+
+% Skip 2: Every core reaction has a single bound-feasible sign — 0 Stage-1 LPs
+if ~any(twoWayCore)
+    return;
+end
+
+% Build non-negative Stage-1 Anchor penalty vector appropriate for probType:
+%   - minNetLP / minNetMILP: non-negative cost weights directly
+%   - tradeOff (signed weights): penalize negatively weighted reactions (-w_i > 0)
+%     while treating positively weighted reactions (w_i >= 0) as zero-penalty
+wAnchor   = [];
+useAnchor = false;
+hasFixed  = any(onlyFwdCore) || any(onlyRevCore) || ~localZeroFluxIsFeasible(model, useCoupling);
+if (~isAltSol) && (numel(weights) == n) && hasFixed
+    if ismember(probType, {'minNetLP', 'minNetMILP'})
+        wAnchor          = weights;
+        wAnchor(coreMask) = 0.0;
+        useAnchor        = true;
+    elseif strcmp(probType, 'tradeOff') && any(weights < 0)
+        wAnchor          = zeros(n, 1);
+        negW             = (weights < 0);
+        wAnchor(negW)    = -weights(negW);
+        wAnchor(coreMask) = 0.0;
+        useAnchor        = true;
     end
 end
 
+if useAnchor
+    [~, vAnchor, statAnc, ~, ancLPs] = minNet(model, direction, wAnchor, tol, ...
+        steadystate, 'minNetLP', [], [], {}, {}, inclusionCutoff, solverTol, useCoupling, false);
+    nLPs = nLPs + ancLPs;
+    if statAnc ~= 1 || isempty(vAnchor)
+        localRaiseInfeasibleCore(sum(coreMask), tol);
+    end
+    lastFlux = vAnchor;
 
-function [groups,milpWeights] = resolveGroupArgument(given,weights,rxns,probType)
-% Turns the indicatorGroups argument into index vectors and group weights.
-%
-% Reaction IDs are accepted as well as indices, because naming the handful
-% of reactions that get a binary is how the argument is usually used, and
-% looking the indices up by hand is a step that only invites mistakes.
-groups = {};
+    settledRev = twoWayCore & (abs(vAnchor) >= 0.1 * tol);
+    direction(settledRev) = sign(vAnchor(settledRev));
+    unsettledMask = twoWayCore & (direction == 0);
+
+    if ~any(unsettledMask)
+        if all(abs(vAnchor(coreMask)) >= tol)
+            if strcmp(probType, 'minNetLP')
+                pass0FluxReady = vAnchor;
+            end
+            return;
+        elseif all(abs(vAnchor(coreMask)) >= lockTol)
+            return;
+        end
+        direction(twoWayCore & (abs(vAnchor) < lockTol)) = 0;
+        unsettledMask = twoWayCore & (direction == 0);
+    end
+else
+    vAnchor       = zeros(n, 1);
+    unsettledMask = twoWayCore;
+end
+
+% Iterative mPinned forward/reverse on unsettled two-way core reactions
+stalls   = 0;
+roundIdx = 0;
+while any(unsettledMask)
+    roundIdx = roundIdx + 1;
+    before   = sum(unsettledMask);
+
+    if isAltSol
+        firstIsFwd = (randi(2) == 1);
+    else
+        firstIsFwd = true;
+    end
+
+    % Reuse iterW across forward and reverse within the round
+    iterW = zeros(n, 1);
+    iterW(unsettledMask) = 1.0 + 0.1 * rand(before, 1);
+
+    passOrder = [firstIsFwd, ~firstIsFwd];
+    for p = 1:2
+        if ~any(unsettledMask)
+            break;
+        end
+        doFwd = passOrder(p);
+
+        mPinned = model;
+        mPinned.lb(direction == 1)  = max(tol, mPinned.lb(direction == 1));
+        mPinned.ub(direction == -1) = min(-tol, mPinned.ub(direction == -1));
+
+        nLPs = nLPs + 1;
+        if doFwd
+            [f, ~] = forward(mPinned, unsettledMask, tol, steadystate, useCoupling, solverTol, iterW);
+        else
+            [f, ~] = reverse(mPinned, unsettledMask, tol, steadystate, useCoupling, solverTol, iterW);
+        end
+
+        if any(isnan(f)) && useAnchor && roundIdx == 1 && p == 1
+            direction(twoWayCore & (abs(vAnchor) < lockTol)) = 0;
+            unsettledMask = twoWayCore & (direction == 0);
+            mPinned = model;
+            mPinned.lb(direction == 1)  = max(tol, mPinned.lb(direction == 1));
+            mPinned.ub(direction == -1) = min(-tol, mPinned.ub(direction == -1));
+            iterW = zeros(n, 1);
+            iterW(unsettledMask) = 1.0 + 0.1 * rand(sum(unsettledMask), 1);
+            nLPs = nLPs + 1;
+            if doFwd
+                [f, ~] = forward(mPinned, unsettledMask, tol, steadystate, useCoupling, solverTol, iterW);
+            else
+                [f, ~] = reverse(mPinned, unsettledMask, tol, steadystate, useCoupling, solverTol, iterW);
+            end
+        end
+        if any(isnan(f))
+            localRaiseInfeasibleCore(sum(coreMask), tol);
+        end
+
+        lastFlux = f;
+        newly = unsettledMask & (abs(f) >= lockTol);
+        direction(newly)     = sign(f(newly));
+        unsettledMask(newly) = false;
+    end
+
+    stalls = assertCoreProgress(unsettledMask, before, stalls, tol);
+end
+end
+
+% =========================================================================
+% Stage 2: Dispatch to Selected Formulation (minNet / tradeOff / optimBiomass)
+% =========================================================================
+function [reacInd, extLPs, selected, stat] = localRunSingleExtraction( ...
+    model, direction, coreMask, weights, milpWeights, probType, tol, steadystate, ...
+    solveTime, witnessFlux, pass0FluxReady, prevSols, indicatorGroups, ...
+    inclusionCutoff, solverTol, useCoupling)
+
+n        = numel(model.rxns);
+extLPs   = 0;
+selected = [];
+zeroFeas = ~any(direction ~= 0) && localZeroFluxIsFeasible(model, useCoupling);
+
+if strcmp(probType, 'minNetLP')
+    [reacInd, ~, stat, ~, extLPs] = minNet(model, direction, weights, tol, ...
+        steadystate, 'minNetLP', [], pass0FluxReady, {}, {}, ...
+        inclusionCutoff, solverTol, useCoupling, true);
+
+elseif strcmp(probType, 'minNetMILP')
+    if zeroFeas && isempty(prevSols) && isempty(indicatorGroups) && all(milpWeights > 0)
+        reacInd  = false(n, 1);
+        selected = false(n, 1);
+        stat     = 1;
+        return;
+    end
+    if ~any(coreMask) && isempty(witnessFlux) && isempty(prevSols) && ~zeroFeas
+        witnessFlux = localOptionalWarmStart(model, useCoupling);
+    end
+    [reacInd, ~, stat, selected] = minNet(model, direction, milpWeights, tol, ...
+        steadystate, 'minNetMILP', solveTime, witnessFlux, prevSols, ...
+        indicatorGroups, inclusionCutoff, solverTol, useCoupling);
+
+elseif strcmp(probType, 'optimBiomass')
+    if zeroFeas && (~any(model.c ~= 0) || all(weights(model.c ~= 0) == 0))
+        reacInd = false(n, 1);
+        stat    = 1;
+        return;
+    end
+    [reacInd, ~, stat, extLPs] = optimBiomass(model, direction, weights, tol, ...
+        steadystate, useCoupling, solverTol, inclusionCutoff);
+
+elseif strcmp(probType, 'tradeOff')
+    if zeroFeas && isempty(prevSols) && isempty(indicatorGroups) && all(milpWeights < 0)
+        reacInd  = false(n, 1);
+        selected = false(n, 1);
+        stat     = 1;
+        return;
+    end
+    if ~any(coreMask) && isempty(witnessFlux) && isempty(prevSols) && ~zeroFeas
+        witnessFlux = localOptionalWarmStart(model, useCoupling);
+    end
+    [reacInd, ~, stat, selected] = tradeOff(model, direction, milpWeights, tol, ...
+        steadystate, solveTime, witnessFlux, prevSols, indicatorGroups, ...
+        inclusionCutoff, solverTol, useCoupling);
+end
+end
+
+% =========================================================================
+% Validation & Helper Utilities
+% =========================================================================
+function lockTol = localResolveLockTol(tol, solverTol, inclusionCutoff)
+FLOOR = 1e-9;
+lpTolerances(solverTol); % Validates solverTol immediately
+if isempty(solverTol)
+    effSolverTol = FLOOR;
+elseif (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
+        strcmpi(solverTol, 'default')
+    effSolverTol = double(getCobraSolverParams('LP', 'feasTol'));
+else
+    effSolverTol = max(FLOOR, double(solverTol));
+end
+if ~isempty(inclusionCutoff)
+    if ~isnumeric(inclusionCutoff) || ~isscalar(inclusionCutoff) || ...
+            ~isfinite(inclusionCutoff) || inclusionCutoff <= 0
+        error('spectraME:badInclusionCutoff', ...
+            'inclusionCutoff must be a positive finite scalar.');
+    end
+end
+lockTol = max(0.99 * tol, tol - 10.0 * effSolverTol);
+end
+
+% -------------------------------------------------------------------------
+function tf = localZeroFluxIsFeasible(model, useCoupling)
+tf = all(model.lb <= 0) && all(model.ub >= 0);
+if tf && useCoupling && isfield(model, 'C') && ~isempty(model.C)
+    d  = reshape(model.d, [], 1);
+    ds = reshape(model.dsense, [], 1);
+    tf = ~any(((ds == 'G') & (d > 0)) | ((ds == 'L') & (d < 0)) | ((ds == 'E') & (d ~= 0)));
+end
+end
+
+% -------------------------------------------------------------------------
+function x0 = localOptionalWarmStart(model, useCoupling)
+x0 = [];
+if ~any(model.c ~= 0)
+    return;
+end
+mWarm = model;
+if ~useCoupling && isfield(mWarm, 'C')
+    mWarm = rmfield(mWarm, intersect(fieldnames(mWarm), {'C', 'd', 'dsense', 'ctrs'}));
+end
+sol = optimizeCbModel(mWarm);
+if isfield(sol, 'stat') && sol.stat == 1 && isfield(sol, 'x') && ~isempty(sol.x)
+    x0 = sol.x;
+end
+end
+
+% -------------------------------------------------------------------------
+function coreMask = localParseCoreMask(coreRxns, rxns, n)
+if isempty(coreRxns)
+    coreMask = false(n, 1);
+elseif iscell(coreRxns) || isstring(coreRxns) || ischar(coreRxns)
+    if ischar(coreRxns), coreRxns = {coreRxns}; end
+    coreMask = ismember(rxns, cellstr(coreRxns(:)));
+elseif islogical(coreRxns) && numel(coreRxns) == n
+    coreMask = coreRxns(:);
+else
+    coreMask = ismember((1:n)', coreRxns(:));
+end
+end
+
+% -------------------------------------------------------------------------
+function localRaiseInfeasibleCore(nCore, tol)
+error('spectraME:infeasibleCore', ...
+    ['No flux distribution lets all %d core reactions carry at least ' ...
+     'tol=%g at once. Either the core set is mutually inconsistent, or ' ...
+     'some of its reactions are blocked in this model. spectraCCME ' ...
+     'handles the latter by dropping them and returning them as ' ...
+     'BlockedCoreRxns.'], nCore, tol);
+end
+
+% -------------------------------------------------------------------------
+function subModel = localSubsetModel(origModel, reacInd, remGene)
+n = numel(origModel.rxns);
+keep = false(n, 1);
+if islogical(reacInd)
+    keep = reacInd(:);
+else
+    keep(reacInd) = true;
+end
+if all(keep)
+    subModel = origModel;
+else
+    subModel = removeRxns(origModel, origModel.rxns(~keep));
+end
+if remGene
+    subModel = removeUnusedGenes(subModel);
+end
+end
+
+% -------------------------------------------------------------------------
+function [groups, milpWeights] = localResolveGroupArgument(given, weights, userGaveWeights, rxns, probType)
+groups      = {};
 milpWeights = weights;
 if isempty(given)
-    return
+    return;
 end
-if ~ismember(probType,{'minNetMILP','tradeOff'})
+if ~ismember(probType, {'minNetMILP', 'tradeOff'})
     error('spectraME:groupsWithoutBinaries', ...
         ['indicatorGroups groups the MILP''s binaries, and ''%s'' has ' ...
          'none. Use ''minNetMILP'' or ''tradeOff''.'], probType);
 end
 if ~iscell(given)
     error('spectraME:badIndicatorGroups', ...
-        ['indicatorGroups must be a cell array, of reaction index ' ...
-         'vectors or of reaction IDs.']);
+        'indicatorGroups must be a cell array, of reaction index vectors or of reaction IDs.');
 end
 named = all(cellfun(@(g) ischar(g) || (isstring(g) && isscalar(g)), given(:)'));
 if named
     ids = cellstr(given(:));
-    [found,at] = ismember(ids,rxns);
+    [found, at] = ismember(ids, rxns);
     if ~all(found)
         missing = ids(~found);
         error('spectraME:unknownIndicatorReaction', ...
-            'No reaction %s in the model, so it cannot be given a binary.', ...
-            missing{1});
+            'No reaction %s in the model, so it cannot be given a binary.', missing{1});
     end
     groups = num2cell(at(:));
 else
     groups = cellfun(@(g) g(:), given(:), 'UniformOutput', false);
 end
-
-% A weight per reaction is what every other caller passes, so take it and
-% add up each group's. One binary per reaction leaves every weight as it
-% was; the copies of one reaction across replicated conditions share a
-% weight, so the sum rescales every group alike and leaves the argument of
-% the minimum where it was.
-if numel(weights) == numel(rxns) && numel(groups) ~= numel(weights)
+if ~userGaveWeights
+    milpWeights = ones(numel(groups), 1);
+elseif numel(weights) == numel(rxns) && numel(groups) ~= numel(weights)
     milpWeights = cellfun(@(g) sum(weights(g)), groups);
     milpWeights = milpWeights(:);
 end
+end
 
-
-function selection = reportSelection(indicatorGroups,selected,rxns,direction)
-% Packs what the binaries decided into a structure, or [] where there were none.
+% -------------------------------------------------------------------------
+function selection = localReportSelection(indicatorGroups, selected, rxns, direction)
 if isempty(selected)
     selection = [];
-    return
+    return;
 end
-[groupOf,nGroups,ungoverned] = resolveIndicatorGroups(indicatorGroups, ...
+[groupOf, nGroups, ungoverned] = resolveIndicatorGroups(indicatorGroups, ...
     direction == 0, numel(rxns));
-groups = cell(nGroups,1);
+groups = cell(nGroups, 1);
 for g = 1:nGroups
     groups{g} = find(groupOf == g);
 end
-on = false(numel(rxns),1);
-for g = reshape(find(selected(:)),1,[])
+on = false(numel(rxns), 1);
+for g = reshape(find(selected(:)), 1, [])
     on(groups{g}) = true;
 end
-selection = struct('groups',{groups},'selected',{logical(selected(:))}, ...
-    'selectedRxns',{rxns(on)},'ungoverned',{ungoverned});
-
-
-function assertCoreFeasible(flux,nCore,tol)
-% Stops a direction LP that came back infeasible from becoming a hang.
-%
-% forward and reverse return an all-NaN flux vector when their LP has no
-% solution. NaN fails every comparison, so the caller's loop clears no core
-% reaction, `while any(temp_core)` never exits, and the run spins emitting a
-% warning per iteration instead of stopping. Checking here turns that into a
-% message saying what to do about it.
-if any(isnan(flux))
-    error('spectraME:infeasibleCore', ...
-        ['No flux distribution lets all %d core reactions carry at least ' ...
-         'tol=%g at once. Either the core set is mutually inconsistent, or ' ...
-         'some of its reactions are blocked in this model. spectraCCME ' ...
-         'handles the latter by dropping them and returning them as ' ...
-         'BlockedCoreRxns.'], nCore, tol);
+selection = struct('groups', {groups}, 'selected', {logical(selected(:))}, ...
+    'selectedRxns', {rxns(on)}, 'ungoverned', {ungoverned});
 end

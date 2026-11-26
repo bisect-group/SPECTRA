@@ -4,6 +4,17 @@ Consistency checking
 Removes the blocked reactions of a model, leaving one in which every
 reaction can carry flux.
 
+In each iteration, ``spectraCC`` draws a single random weight vector
+:math:`w \sim U(1, 1.1)` over the still-unverified reactions and shares it
+between ``forwardcc`` and ``reverse`` (after internally orienting
+reverse-only irreversible reactions ``ub <= 0`` forward). Sharing the weight
+vector cancels anti-parallel reversible terms across the forward/reverse pair
+and guarantees almost-sure progress in every active round. Each LP is solved
+at ``solverTol = 1e-9`` by default via :func:`~src.lpTolerances` without
+mutating global ``CBT_LP_PARAMS``; pass ``solverTol = 'default'`` for
+severely ill-scaled forced-flux models such as ``Harvey`` that require the
+solver's default ``1e-6`` tolerance.
+
 Flux consistency here is defined over the stoichiometry alone -- ``S``,
 ``lb`` and ``ub`` -- which is what fastcc, FASTCORE, FASTERCC and swiftcore
 all answer, and what a comparison against any of them has to answer too. A

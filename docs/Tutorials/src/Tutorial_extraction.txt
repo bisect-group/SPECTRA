@@ -30,7 +30,7 @@ fprintf('%d reactions, PGI kept: %d\n', ...
     numel(extracted.rxns), ismember('PGI', extracted.rxns));
 ```
 
-From 87 consistent reactions down to 27, with the core reaction in there.
+From 87 consistent reactions down to 32, with the core reaction in there.
 
 Note that coreRxns is a vector of indices, not names. findRxnIDs converts, and it is worth going through it rather than hard-coding positions, because the indices shift as soon as you remove the blocked reactions.
 
@@ -46,7 +46,7 @@ for k = 1:numel(cores)
 end
 ```
 
-Adding PFK and FBA to PGI costs nothing: they are on the same glycolytic route, which was already pulled in. Asking for two TCA reactions instead costs ten more, since that part of the network needs more support.
+Adding PFK and FBA to PGI costs nothing: they are on the same glycolytic route, which was already pulled in, and asking for two TCA reactions lands on a 32-reaction subnetwork as well.
 
 ## When the core set is impossible
 
@@ -93,7 +93,7 @@ fprintf('%d reactions, of the oxygen route kept: %s\n', ...
 disp(ex.rxns');
 ```
 
-The baseline extraction above was aerobic: it kept oxygen uptake, the transporter and cytochrome oxidase. Charging a hundred for those three makes respiration the expensive option, and the extraction abandons it rather than paying, dropping from 27 reactions to 16 — glycolysis plus lactate dehydrogenase and D-lactate export.
+The baseline extraction above was aerobic: it kept oxygen uptake, the transporter and cytochrome oxidase. Charging a hundred for those three makes respiration the expensive option, and the extraction abandons it rather than paying, dropping from 32 reactions to 22 — glycolysis plus pyruvate formate-lyase and ethanol/formate export.
 
 That is a useful thing to notice about weights. They do not merely prune at the edges; a weight large enough to change which route is cheapest will swap one subnetwork for another. Here the result is a sensible fermentative model, but nothing guaranteed that, and a careless weight can just as easily produce a model that no longer does what you assumed.
 
@@ -135,7 +135,7 @@ fprintf('remGene=0: %d genes\nremGene=1: %d genes\n', ...
     numel(kept.genes), numel(pruned.genes));
 ```
 
-Both models have the same 27 reactions. Only the gene list differs, so turn remGene on if you intend to do anything gene-based with the result, and leave it off if you want the extracted model to stay comparable to the input.
+Both models have the same 32 reactions. Only the gene list differs, so turn remGene on if you intend to do anything gene-based with the result, and leave it off if you want the extracted model to stay comparable to the input.
 
 ## Coupling constraints
 
@@ -152,7 +152,7 @@ Whatever you choose, pass the same to checkExtraction. A check that answers a di
 
 ## Reproducibility
 
-The direction phase breaks ties between core reactions with randomised coefficients, so an unseeded run returns a different model each time. The last argument pins them.
+The direction phase breaks ties between core reactions with randomised coefficients (shared across the forward and reverse LPs in each round), so an unseeded run can return a different model each time. The seed argument pins them, while preserving the input model's exact COBRA reaction orientations and bounds even for reverse-only irreversible reactions.
 
 ```
 a = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...

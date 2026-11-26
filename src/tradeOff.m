@@ -1,110 +1,99 @@
-function [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadyState,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
+function [reacInd, x, stat, selected] = tradeOff(model, direction, weights, tol, steadyState, solveTime, x0, prevSols, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
 % USAGE:
-%   [reacInd,x,stat,selected] = tradeOff(model,direction,weights,tol,steadystate,solveTime,x0,prevSols,indicatorGroups,inclusionCutoff,solverTol,useCoupling)
+%   [reacInd, x, stat, selected] = tradeOff(model, direction, weights, tol, steadyState, solveTime, x0, prevSols, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
 %
 % INPUTS:
-%     model:       COBRA model structure.
-%     direction:   A vector of size equal to number of reactions in the
-%                  model. The unique elements in this vector has to be -1,0
-%                  and 1 defining the flux directionality info.
-%     weights:     weights for non-core reactions. Positive weighted reactions have more
-%                  chance to get included and negative weighted reactions
-%                  have less chance to get included
-%     tol:         tolerance level (minimum absolute flux that has to be carried
-%                  by a reaction for it to be defined as consistent)
-%     steadyState: Boolean value indicating whether to assume steady state
-%                  condition (S.v = 0) or accumulation condition (S.v >= 0)
+%   model:           COBRA model structure.
+%   direction:       Vector of length n with entries in {-1, 0, 1} specifying
+%                    pinned core reaction directions (0 for free reactions).
+%   weights:         Signed reaction (or group) evidence weights: any finite
+%                    real numbers. Positive weights reward inclusion; negative
+%                    weights penalize inclusion; zero is neutral.
+%   tol:             Minimum absolute flux required for pinned core reactions
+%                    and switched-on tradeOff binaries.
+%   steadyState:     1 for stoichiometric steady state (S*v = 0),
+%                    0 for topological accumulation (S*v >= 0).
 %
 % OPTIONAL INPUTS:
-%     solveTime:   Upper limit of solving time (Default-7200)
-%     x0:          solution vector to initialize with for MILP problem.
-%                  This can be obtained from the LPforward and LPreverse
-%     prevSols:    A cell of previously obtained solutions that needs to be
-%                  excluded in the current solution. Each entry holds
-%                  reaction indices, or group indices when indicatorGroups
-%                  is given.
-%     indicatorGroups: Cell array of index vectors, one per group, giving the
-%                  reactions that share a single binary. They are then
-%                  included or excluded together and score the group's
-%                  weight once however many of them there are, and weights
-%                  must hold one entry per group rather than one per
-%                  reaction. A free reaction in no group gets no binary and
-%                  is always kept. (Default: one binary per free reaction)
-%
-%                  Note that a shared binary is a stronger statement here
-%                  than it is in minNet. tradeOff requires every included
-%                  reaction to carry at least tol, so switching a group on
-%                  forces *every* reaction in it to carry flux, whereas
-%                  minNet only permits them to. Group reactions together
-%                  here only when you mean that all of them must work.
-%     inclusionCutoff: The absolute flux at which a reaction counts as used.
-%                  (Default: tol*1e-7)
-%     solverTol:   The feasibility, optimality and integrality tolerances to
-%                  solve the MILP at. Asked of the solve itself rather than
-%                  set globally, so nothing outside this call moves. The
-%                  integrality tolerance is the one that matters: a binary
-%                  sitting at it and still counted as zero permits a flux of
-%                  solverTol*ub, which at a solver's usual 1e-5 and the
-%                  usual bound of 1000 is 0.01 - far above inclusionCutoff,
-%                  so reactions the solver switched off would read as
-%                  carrying flux and be kept. Loosen it only for a large
-%                  problem that will not converge. (Default: 1e-9, the
-%                  tightest the solvers accept)
-%     useCoupling: Whether to apply the model's coupling constraints (the
-%                  C, d and dsense fields coupleRxnList2Rxn writes). Off by
-%                  default, so the problem is built from S, lb and ub alone,
-%                  which is how flux consistency is conventionally defined
-%                  and what a comparison against fastcc or FASTERCC has to
-%                  answer. Switch it on when the parameterisation is the
-%                  point, as a community model's coupling is.
-%                  (Default: false)
+%   solveTime:       Time limit in seconds for the MILP solve (Default: 7200).
+%   x0:              Initial feasible flux vector for MIP warm start (Default: []).
+%   prevSols:        Cell array of previously excluded binary solution sets (Default: {}).
+%   indicatorGroups: Cell array of reaction index vectors sharing one binary.
+%                    When provided, weights must hold one entry per group;
+%                    free reactions outside all groups get no binary and are
+%                    retained unconditionally (Default: {}).
+%   inclusionCutoff: Minimum absolute flux to retain a non-core reaction (Default: tol*1e-7).
+%   solverTol:       Solver feasibility, optimality, and integrality tolerance,
+%                    or 'default' (Default: 1e-9).
+%   useCoupling:     Honor coupling constraints model.C, d, dsense (Default: false).
 %
 % OUTPUTS:
-%     reacInd: Reaction IDs corresponding to reactions that has to be
-%              present in the final extracted model
-%     x:       Solution returned after optimization
-%     stat:    Status of optimization
-%     selected: Logical over the groups, saying which binaries the solver
-%              switched on. With one binary per free reaction this is a
-%              logical over those reactions, in model order.
+%   reacInd:         Logical mask of reactions retained in the extracted model.
+%   x:               Continuous flux vector from the MILP solution.
+%   stat:            MILP solver status (1 = optimal, 3 = time-limit incumbent).
+%   selected:        Logical vector over MILP binary groups (z >= 0.5).
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
 %
-% .. See also: minNet, resolveIndicatorGroups, milpTolerances
-
+% .. See also: minNet, optimBiomass, resolveIndicatorGroups, milpTolerances
 
 if ~exist('solveTime', 'var') || isempty(solveTime)
-   solveTime=7200;
+    solveTime = 7200;
+end
+if ~exist('x0', 'var')
+    x0 = [];
+end
+if ~exist('prevSols', 'var') || isempty(prevSols)
+    prevSols = {};
 end
 if ~exist('indicatorGroups', 'var')
     indicatorGroups = {};
 end
 if ~exist('inclusionCutoff', 'var') || isempty(inclusionCutoff)
-    inclusionCutoff = tol*1e-7;
+    inclusionCutoff = tol * 1e-7;
+else
+    if ~isnumeric(inclusionCutoff) || ~isscalar(inclusionCutoff) || ...
+            ~isfinite(inclusionCutoff) || inclusionCutoff <= 0
+        error('tradeOff:badInclusionCutoff', ...
+            'inclusionCutoff must be a positive finite scalar.');
+    end
+    inclusionCutoff = double(inclusionCutoff);
 end
 if ~exist('solverTol', 'var')
     solverTol = [];
 end
 if ~exist('useCoupling', 'var') || isempty(useCoupling)
     useCoupling = false;
+else
+    useCoupling = logical(useCoupling);
 end
 
-[m,n] = size(model.S);
-dir0 = direction==0; % boolean value indicating if the reaction is non-core (1) or not (0)
+[m, n]    = size(model.S);
+direction = reshape(double(direction), n, 1);
+dir0      = (direction == 0);
 
-% Which binary governs which reaction. With no groups every free reaction
-% gets its own, which is the usual formulation; with groups the members of
-% one group share a binary and a free reaction in no group gets none and is
-% always kept.
-[groupOf,nGroups,ungoverned] = resolveIndicatorGroups(indicatorGroups,dir0,n);
-governed = groupOf > 0;
-govIrr = find(governed & ~model.rev); % governed irreversible reactions
-govRev = find(governed & model.rev);  % governed reversible reactions
-nIrr = numel(govIrr);
-n_rev = numel(govRev);
+if ~isnumeric(weights) || isempty(weights) || any(~isfinite(weights(:)))
+    error('tradeOff:badWeights', 'weights must be finite numeric values (positive, zero, or negative).');
+end
+weights = double(weights(:));
+
+lb    = full(double(model.lb(:)));
+ub    = full(double(model.ub(:)));
+isRev = (lb < 0);
+
+[groupOf, nGroups, ungoverned] = resolveIndicatorGroups(indicatorGroups, dir0, n);
+governed = (groupOf > 0);
+govIrr   = find(governed & (~isRev));
+govRev   = find(governed & isRev);
+nIrr     = numel(govIrr);
+n_rev    = numel(govRev);
 
 if isempty(indicatorGroups)
+    if numel(weights) ~= n
+        error('tradeOff:badWeights', ...
+            'weights must have one entry per reaction (%d), got %d.', n, numel(weights));
+    end
     groupWeights = weights(dir0);
 else
     if numel(weights) ~= nGroups
@@ -117,122 +106,114 @@ else
     groupWeights = weights(:);
 end
 
-% the decision variables are v,z,a,b. v defines the flux values. z define
-% the binary integer for the noncore reactions. a and b are for
-% reverse and forward direction of the noncore reversible reactions.
+% Decision variables: [v (n); z (nGroups); a_fwd (n_rev); b_rev (n_rev)]
+f = [zeros(n, 1); groupWeights; zeros(2 * n_rev, 1)];
 
-% objective
-f = [zeros(n,1);groupWeights;zeros(n_rev*2,1)];
-
-% stoichiometry or topology constraints
-Aeq1 = [model.S, sparse(m,nGroups+(n_rev*2))];
-beq1 = zeros(m,1);
-
+% Stoichiometry or topology constraints
+Aeq1 = [model.S, sparse(m, nGroups + 2 * n_rev)];
+beq1 = zeros(m, 1);
 if steadyState
-    csenseeq1 = repmat('E',m,1); % equality (For consistency based model extraction)
+    csenseeq1 = repmat('E', m, 1);
 else
-    csenseeq1 = repmat('G',m,1); % greater than (For topology based model extraction)
+    csenseeq1 = repmat('G', m, 1);
 end
 
-% Picks out a governed reaction's own flux on the left, and its group's
-% binary on the right. With one group per reaction these are the identity
-% blocks the earlier formulation wrote out directly.
-pickIrr = sparse(1:nIrr, govIrr, 1, nIrr, n);
+pickIrr  = sparse(1:nIrr, govIrr, 1, nIrr, n);
 shareIrr = sparse(1:nIrr, groupOf(govIrr), 1, nIrr, nGroups);
-pickRev = sparse(1:n_rev, govRev, 1, n_rev, n);
+pickRev  = sparse(1:n_rev, govRev, 1, n_rev, n);
 shareRev = sparse(1:n_rev, groupOf(govRev), 1, n_rev, nGroups);
 
-% relation between the flux of non-core irreversible reactions and the
-% corresponding binary variables
-Aineq1 = [-1*pickIrr, tol*shareIrr, sparse(nIrr,n_rev*2)];
-bineq1 = zeros(nIrr,1);
-csenseineq1 = repmat('L',nIrr,1); % lesser than
+% Irreversible governed reactions: tol * z <= v <= ub * z
+Aineq1      = [-pickIrr, tol * shareIrr, sparse(nIrr, 2 * n_rev)];
+bineq1      = zeros(nIrr, 1);
+csenseineq1 = repmat('L', nIrr, 1);
 
-Aineq2 = [pickIrr, -1*spdiags(model.ub(govIrr),0,nIrr,nIrr)*shareIrr, ...
-    sparse(nIrr,n_rev*2)];
-bineq2 = zeros(nIrr,1);
-csenseineq2 = repmat('L',nIrr,1); % lesser than
+Aineq2      = [pickIrr, -spdiags(ub(govIrr), 0, nIrr, nIrr) * shareIrr, sparse(nIrr, 2 * n_rev)];
+bineq2      = zeros(nIrr, 1);
+csenseineq2 = repmat('L', nIrr, 1);
 
-% constraints to ignore the previously obtained solutions
-Aineq3=[];bineq3=[];csenseineq3=[];
-if exist('prevSols', 'var') && ~isempty(prevSols)
-    for id=1:numel(prevSols)
+% Exclusion cuts on previously selected binary indicator sets
+Aineq3      = sparse(0, n + nGroups + 2 * n_rev);
+bineq3      = zeros(0, 1);
+csenseineq3 = repmat('L', 0, 1);
+if ~isempty(prevSols)
+    nExcl       = numel(prevSols);
+    Aineq3      = sparse(nExcl, n + nGroups + 2 * n_rev);
+    bineq3      = zeros(nExcl, 1);
+    csenseineq3 = repmat('L', nExcl, 1);
+    freeList    = find(dir0);
+    for id = 1:nExcl
         if isempty(indicatorGroups)
-            temp = find(dir0);
-            temp = ismember(temp,prevSols{id});
+            maskExcl = ismember(freeList, prevSols{id});
         else
-            temp = ismember(1:nGroups,prevSols{id});
+            maskExcl = ismember((1:nGroups)', prevSols{id});
         end
-        temp =temp(:)';
-        Aineq3 = [Aineq3;[zeros(1,n),temp,zeros(1,n_rev*2)]];     %#ok<AGROW>
-        bineq3 = [bineq3;sum(temp)-1];                            %#ok<AGROW>
-        csenseineq3 = [csenseineq3;'L'];                          %#ok<AGROW>
+        maskExcl = reshape(double(maskExcl), 1, nGroups);
+        Aineq3(id, n+1:n+nGroups) = maskExcl;
+        bineq3(id)                = sum(maskExcl) - 1;
     end
 end
 
-% constraints for reversible non-core reactions to carry flux only in
-% one direction. Either in forward direction of reverse direction.
-% a + b = z
-Aeq2 = [sparse(n_rev,n), -1*shareRev, speye(n_rev), speye(n_rev)];
-beq2 = zeros(n_rev,1);
-csenseeq2 = repmat('E',n_rev,1);
+% Reversible governed reactions: a_fwd + b_rev = z,
+%   tol * a_fwd + lb * b_rev <= v <= ub * a_fwd - tol * b_rev
+Aeq2      = [sparse(n_rev, n), -shareRev, speye(n_rev), speye(n_rev)];
+beq2      = zeros(n_rev, 1);
+csenseeq2 = repmat('E', n_rev, 1);
 
-% constraint linking the binary variable, a and the flux through the
-% reversible non-core reactions
-Aineq4 = [pickRev, sparse(n_rev,nGroups), -1*spdiag(tol*ones(n_rev,1)), ...
-    -1*spdiag(model.lb(govRev))];
-bineq4 = zeros(n_rev,1);
-csenseineq4 = repmat('G',n_rev,1);
+Aineq4      = [pickRev, sparse(n_rev, nGroups), ...
+               -spdiags(tol * ones(n_rev, 1), 0, n_rev, n_rev), ...
+               -spdiags(lb(govRev), 0, n_rev, n_rev)];
+bineq4      = zeros(n_rev, 1);
+csenseineq4 = repmat('G', n_rev, 1);
 
-% constraint linking the binary variable, b and the flux through the
-% reversible non-core reactions
-Aineq5 = [pickRev, sparse(n_rev,nGroups), -1*spdiag(model.ub(govRev)), ...
-    spdiag(tol*ones(n_rev,1))];
-bineq5 = zeros(n_rev,1);
-csenseineq5 = repmat('L',n_rev,1);
+Aineq5      = [pickRev, sparse(n_rev, nGroups), ...
+               -spdiags(ub(govRev), 0, n_rev, n_rev), ...
+               spdiags(tol * ones(n_rev, 1), 0, n_rev, n_rev)];
+bineq5      = zeros(n_rev, 1);
+csenseineq5 = repmat('L', n_rev, 1);
 
-% bounds
-lb = model.lb;
-lb(direction==1)=max([tol*ones(sum(direction==1),1),lb(direction==1)],[],2);
-lb = [lb;zeros(nGroups+(2*n_rev),1)];
-ub = model.ub;
-ub(direction==-1)=-tol*ones(sum(direction==-1),1);
-ub = [ub;ones(nGroups+(2*n_rev),1)];
+% Bounds (preserving tighter box bounds on pinned core reactions)
+lb(direction == 1)  = max(tol, lb(direction == 1));
+ub(direction == -1) = min(-tol, ub(direction == -1));
+lb = [lb; zeros(nGroups + 2 * n_rev, 1)];
+ub = [ub; ones(nGroups + 2 * n_rev, 1)];
 
-% coupling constraints, where the model has any
-[Acpl,bcpl,csensecpl] = couplingRows(model,nGroups+(2*n_rev),useCoupling);
+[Acpl, bcpl, csensecpl] = couplingRows(model, nGroups + 2 * n_rev, useCoupling);
 
-% Set up MILP problem
-MILPproblem.A=[Aeq1;Aeq2;Aineq1;Aineq2;Aineq3;Aineq4;Aineq5;Acpl];
-MILPproblem.b=[beq1;beq2;bineq1;bineq2;bineq3;bineq4;bineq5;bcpl];
-MILPproblem.lb=lb;
-MILPproblem.ub=ub;
-MILPproblem.c=f;
-MILPproblem.osense=-1; % maximize
-MILPproblem.vartype = [repmat('C',n,1);repmat('B',nGroups+(2*n_rev),1)];
-MILPproblem.csense = [csenseeq1; csenseeq2; csenseineq1; csenseineq2; csenseineq3; csenseineq4; csenseineq5; csensecpl];
-if exist('x0', 'var')&&~isempty(x0)
-    warm = false(nGroups,1);
-    on = false(n,1);
-    on(1:min(n,numel(x0))) = abs(x0(1:min(n,numel(x0))))>1e-12;
-    warm(groupOf(governed & on)) = true;
-    MILPproblem.x0  = [x0;double(warm);x0(govRev)>1e-12;x0(govRev)<-1e-12];
+MILPproblem = struct( ...
+    'A',       [Aeq1; Aeq2; Aineq1; Aineq2; Aineq3; Aineq4; Aineq5; Acpl], ...
+    'b',       [beq1; beq2; bineq1; bineq2; bineq3; bineq4; bineq5; bcpl], ...
+    'lb',      lb, ...
+    'ub',      ub, ...
+    'c',       f, ...
+    'osense',  -1, ...
+    'vartype', [repmat('C', n, 1); repmat('B', nGroups + 2 * n_rev, 1)], ...
+    'csense',  [csenseeq1; csenseeq2; csenseineq1; csenseineq2; csenseineq3; csenseineq4; csenseineq5; csensecpl]);
+
+if ~isempty(x0) && numel(x0) >= n && ~any(isnan(x0(1:n)))
+    x0Flux = reshape(double(x0(1:n)), n, 1);
+    warm   = false(nGroups, 1);
+    if isempty(indicatorGroups)
+        on = abs(x0Flux) >= 0.99 * tol;
+        warm(groupOf(governed & on)) = true;
+        aWarm = double(x0Flux(govRev) >= 0.99 * tol);
+        bWarm = double(x0Flux(govRev) <= -0.99 * tol);
+        MILPproblem.x0 = [x0Flux; double(warm); aWarm; bWarm];
+    end
 end
+
 tolParams = milpTolerances(solverTol);
-solution = solveCobraMILP(MILPproblem,'timeLimit', solveTime, tolParams{:});
-stat =solution.stat;
-if stat==1||stat==3
-    x = solution.cont;
-    z = solution.int;
-    selected = z(1:nGroups) >= 0.5;
+solution  = solveCobraMILP(MILPproblem, 'timeLimit', solveTime, tolParams{:});
+stat      = solution.stat;
+if stat == 1 || stat == 3
+    x          = solution.cont;
+    z          = solution.int;
+    selected   = z(1:nGroups) >= 0.5;
     selectedOn = ismember(groupOf, find(selected));
-    % A reaction with no binary is one nothing is deciding about, so
-    % nothing should discard it.
-    reacInd = (direction ~= 0) | selectedOn | abs(x(1:n))>=inclusionCutoff | ungoverned;
+    reacInd    = (direction ~= 0) | selectedOn | (abs(x(1:n)) >= inclusionCutoff) | ungoverned;
 else
-    fprintf('%s%s\n',num2str(solution.stat),' = solution.stat')
-    fprintf('%s%s\n',num2str(solution.origStat),' = solution.origStat')
-    warning('MILP solution may not be optimal')
-    x=[];reacInd=[];selected=[];
+    x        = [];
+    reacInd  = [];
+    selected = [];
 end
 end

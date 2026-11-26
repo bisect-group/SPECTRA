@@ -54,33 +54,33 @@ fprintf('%d reactions, %d metabolites\n', ...
 
 tol is the flux threshold: the magnitude the LPs drive reactions towards, and by default also the magnitude a reaction must reach to count as consistent.
 
-Raising it tightens the definition. A reaction whose maximum attainable flux is 1e-5 is consistent at tol=1e-6 and blocked at tol=1e-4. Lowering it does not loosen the test indefinitely, though, and this is the part that bites.
+Raising it tightens the definition. A reaction whose maximum attainable flux is 1e-5 is consistent at tol=1e-6 and blocked at tol=1e-4. Lowering it cannot loosen the test past the solver's feasibility tolerance, though, and this is why spectraCC sets solverTol = 1e-9 per solve by default instead of relying on COBRA's session default of 1e-6.
+
+Compare the default (solverTol = 1e-9) against leaving the solver's default feasTol = 1e-6 in place (solverTol = 'default'):
 
 ```
+fprintf('session feasTol = %g\n', getCobraSolverParams('LP', {'feasTol'}));
 for t = [1e-7 1e-6 1e-5 1e-4 1e-3]
-    fprintf('tol=%-8g %d consistent\n', t, numel(spectraCC(model, t)));
+    nTight   = numel(spectraCC(model, t));
+    nDefault = numel(spectraCC(model, t, 'stoichiometry', [], [], false, 'default'));
+    fprintf('tol=%-8g  solverTol=1e-9: %2d consistent | solverTol=''default'' (1e-6): %2d consistent\n', ...
+        t, nTight, nDefault);
 end
 ```
 
-The answer collapses below 1e-5, and it collapses in the wrong direction: the weaker requirement finds fewer consistent reactions, not more. That is not a property of the method. It is the solver.
+Under COBRA's default feasTol of 1e-6, the answer collapses below 1e-5 in the wrong direction: asking whether a reaction can carry 1e-7 of flux asks the solver to distinguish a quantity it does not itself resolve, so the fluxes coming back are noise. With spectraCC's per-solve default of 1e-9, tol down to 1e-7 stays rock-solid at 87 without mutating your global session settings.
+
+The giveaway when tol sits too close to the active solver tolerance is that the collapsed answer is not even stable between runs:
 
 ```
-fprintf('feasTol = %g\n', getCobraSolverParams('LP', {'feasTol'}));
-```
-
-feasTol is 1e-6. Asking whether a reaction can carry 1e-7 of flux asks the solver to distinguish a quantity it does not itself resolve, so the fluxes coming back are noise, and reactions that genuinely do carry flux are not recognised as doing so.
-
-The giveaway is that the collapsed answer is not even stable between runs:
-
-```
-fprintf('tol=1e-6: ');
+fprintf('tol=1e-6 at solverTol=''default'': ');
+for r = 1:5, fprintf('%d ', numel(spectraCC(model, 1e-6, 'stoichiometry', [], [], false, 'default'))); end
+fprintf('\ntol=1e-6 at solverTol=1e-9:      ');
 for r = 1:5, fprintf('%d ', numel(spectraCC(model, 1e-6))); end
-fprintf('\ntol=1e-5: ');
-for r = 1:5, fprintf('%d ', numel(spectraCC(model, 1e-5))); end
 fprintf('\n');
 ```
 
-At 1e-6 the count wanders; at 1e-5 it is 87 every time. So keep tol comfortably above feasTol — an order of magnitude at least. If you genuinely need a smaller threshold, lower feasTol first, with changeCobraSolverParams, and expect the LPs to get slower.
+So keep tol comfortably above the active solverTol — at least three to four orders of magnitude (tol >= 1e-4 against the default 1e-9 is safe even on large genome-scale models). Pass solverTol = 'default' only when benchmarking against methods at COBRA's default tolerance or on severely ill-scaled forced-flux models such as Harvey where 1e-9 is infeasible.
 
 ## The detection cutoff
 
@@ -99,7 +99,7 @@ Both give 87 here, and that is the ordinary case: the two criteria only part com
 
 Which you want depends on whether tol is a meaningful flux magnitude for your problem or just a numerical floor. If tol is a real threshold, keep the default and let it do both jobs; if it is only there to clear the solver, set detectionCutoff to feasTol so you are not also discarding reactions for being slow.
 
-detectionCutoff is the last argument rather than a more natural position next to tol, so that code written against the earlier signature keeps working.
+detectionCutoff sits after seed rather than next to tol, and useCoupling and solverTol follow it, so that code written against earlier signatures keeps working.
 
 ## Coupling constraints, and why they are left out
 
@@ -144,7 +144,7 @@ fprintf('FBA says PGI range [%g, %g]\n', lo.f, hi.f);
 
 With coupling left out, spectraCC at tol 0.1 certifies a reaction that FBA on the same model object says cannot exceed 0.01. If you are going to build a model from the result and then run FBA on it, that disagreement is the thing to avoid, and useCoupling is how.
 
-The same argument runs through the package. spectraME, spectraCCME, minNet, tradeOff, growthOptim, minimalReactome and checkExtraction all take useCoupling and all default to false. gapfillCommunity and minimalMicrobiome turn it on themselves, because a community whose units are not held to their anchors is not the thing either of them is about. Whatever an extraction was run with, pass the same to checkExtraction: a check that answers a different question from the extraction is not a check of it.
+The same argument runs through the package. spectraME, spectraCCME, minNet, tradeOff, optimBiomass, minimalReactome and checkExtraction all take useCoupling and all default to false. gapfillCommunity and minimalMicrobiome turn it on themselves, because a community whose units are not held to their anchors is not the thing either of them is about. Whatever an extraction was run with, pass the same to checkExtraction: a check that answers a different question from the extraction is not a check of it.
 
 Tutorial_community shows what this looks like on a real community, where leaving the coupling out lets a unit that cannot grow go on feeding the rest.
 

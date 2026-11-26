@@ -53,6 +53,15 @@ loose = milpTolerances(1e-6);
 assert(all(cell2mat(loose(2:2:end)) == 1e-6), ...
     'a tolerance above the floor was not used as given');
 
+%% 'default' returns an empty cell array so session/solver defaults stay in place
+assert(isempty(milpTolerances('default')), ...
+    'milpTolerances(''default'') should return {}');
+assert(isempty(lpTolerances('default')), ...
+    'lpTolerances(''default'') should return {}');
+defaultIDs = spectraCC(model, 1e-4, 'stoichiometry', 0, [], false, 'default');
+assert(numel(defaultIDs) == 87, ...
+    'spectraCC with solverTol=''default'' did not find 87 consistent reactions');
+
 %% something that is not a tolerance is refused
 assertTolFails(@() milpTolerances(0), 'positive', 'zero was accepted');
 assertTolFails(@() milpTolerances(-1e-9), 'positive', 'a negative was accepted');

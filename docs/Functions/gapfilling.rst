@@ -10,7 +10,11 @@ cost nothing, so the fill is free to keep all of them, and everything else
 costs one, so it adds as little as it can. The ``weights`` argument sets
 particular reactions against that default, which is where sequence evidence
 goes: a reaction the organism's genome supports should cost less than one
-it does not, so the fill prefers it.
+it does not, so the fill prefers it. ``gapfillForTasks`` accepts all four
+network inference formulations (``'minNetMILP'``, ``'minNetLP'``,
+``'tradeOff'``, and ``'optimBiomass'``) for its core extraction step,
+converting signed ``'tradeOff'`` evidence weights monotonically into
+non-negative penalties for its task-by-task ``'minNetMILP'`` repair pass.
 
 ``gapfillCommunity`` does the same for every unit of a community at once,
 with the biomass coupling applied -- a database reaction that can only

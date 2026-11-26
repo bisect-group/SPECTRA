@@ -47,9 +47,9 @@ assert(ismember('PGI', fromCCME.rxns), ...
 
 %% the formulations disagree, and minNetMILP is the smallest
 sizes = struct();
-for p = {'minNetLP','minNetMILP','growthOptim','tradeOff'}
+for p = {'minNetLP','minNetMILP','optimBiomass','tradeOff'}
     ex = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
-        'coreDirection', p{1}, [], 0, {}, 0);
+        [], p{1}, [], 0, {}, 0);
     sizes.(p{1}) = numel(ex.rxns);
 end
 assert(sizes.minNetMILP <= sizes.minNetLP, ...
@@ -130,6 +130,24 @@ assert(ismember('r6', blockedBySteadyState), ...
 assert(isempty(bySteadyState.rxns), ...
     'at steady state the extraction should be empty, not %d reactions', ...
     numel(bySteadyState.rxns));
+
+%% optimBiomass is supported in spectraME and spectraCCME, and removed names are refused
+exBiomass = spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    [], 'optimBiomass', [], 0, {}, 0);
+[ccmeBio, ~] = spectraCCME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+    [], 'optimBiomass', [], 0, 0);
+assert(ismember('PGI', exBiomass.rxns) && ismember('PGI', ccmeBio.rxns), ...
+    'optimBiomass dropped the core reaction');
+for removedProb = {'growthOptim', 'minNetDC'}
+    caughtBadProb = false;
+    try
+        spectraME(consistent, core, 1e-3, 'stoichiometry', [], 1, ...
+            'coreDirection', removedProb{1}, [], 0, {}, 0);
+    catch err
+        caughtBadProb = strcmp(err.identifier, 'spectraME:badProbType');
+    end
+    assert(caughtBadProb, 'removed %s should raise spectraME:badProbType', removedProb{1});
+end
 
 %% an unknown consistency type is refused
 caught = false;

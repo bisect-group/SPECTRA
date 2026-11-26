@@ -33,6 +33,11 @@ function [ConsReacIDS,LPS] = spectraCC(model,tol,consistencyType,seed,detectionC
 %                     that cannot grow must not be able to run its metabolism either -
 %                     or when the answer has to agree with optimizeCbModel on the same
 %                     model, since that honours C always. (Default: false)
+%    solverTol:       Feasibility and optimality tolerances passed to each LP
+%                     solve, or 'default' to leave the solver's / COBRA
+%                     session's tolerances in place (recommended for severely
+%                     ill-scaled forced-flux models such as Harvey).
+%                     (Default: 1e-9, the tightest the solvers accept)
 %
 % OUTPUTS:
 %    ConsReacIDS: Reaction IDs corresponding to reactions in the input

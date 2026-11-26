@@ -78,8 +78,8 @@ function report = checkExtraction(extracted,coreRxns,tol,consType,detectionCutof
 % NOTE:
 %    An extraction promises two things: that every core reaction is in the
 %    result, and that the result is flux consistent. The first always holds.
-%    The second does not always hold for the LP formulations. minNetLP and
-%    growthOptim read their answer off a flux vector, keeping any reaction
+%    The second does not always hold for naive LP thresholding. minNetLP and
+%    optimBiomass read their answer off a flux vector, keeping any reaction
 %    whose flux clears a cutoff near the solver's own tolerance. A few
 %    reactions end up carrying flux just under that cutoff while doing
 %    load-bearing balancing work, and dropping them leaves a mass-balance

@@ -7,7 +7,9 @@ function params = milpTolerances(solverTol)
 %
 % OPTIONAL INPUTS:
 %    solverTol: The tolerance to ask for, applied to all three of the
-%               feasibility, optimality and integrality tolerances.
+%               feasibility, optimality and integrality tolerances, or
+%               'default' to return {} and leave the solver's / COBRA
+%               session's tolerances in place.
 %               (Default: 1e-9, the tightest the solvers accept)
 %
 % OUTPUTS:
@@ -51,10 +53,15 @@ FLOOR = 1e-9;
 if nargin < 1 || isempty(solverTol)
     solverTol = FLOOR;
 end
+if (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
+        strcmpi(solverTol, 'default')
+    params = {};
+    return
+end
 if ~isnumeric(solverTol) || ~isscalar(solverTol) || ~isfinite(solverTol) || ...
         solverTol <= 0
     error('milpTolerances:badSolverTol', ...
-        'solverTol must be a positive finite scalar.');
+        'solverTol must be a positive finite scalar or ''default''.');
 end
 if solverTol < FLOOR
     warning('milpTolerances:belowFloor', ...

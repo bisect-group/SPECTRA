@@ -34,7 +34,7 @@ The package has been tested on the following systems:
 - [COBRA toolbox](https://opencobra.github.io/cobratoolbox/stable/index.html)
 - CPLEX or Gurobi (for optimization)
 
-All the simulations done in this work were implemented with the COBRA toolbox 3.0 as an interface. Optimizations were performed using Gurobi9.1.2, in a Dell Precision 3640 workstation (IntelCore i7-10700 CPU, 32GB RAM).
+All simulations are implemented through the COBRA Toolbox 3.0 interface and run against Gurobi or IBM CPLEX (with GLPK supported for small models and unit tests). By default, SPECTRA passes `1e-9` feasibility, optimality, and (for MILPs) integrality tolerances per solve without modifying global COBRA solver parameters; pass `solverTol = 'default'` to use the active COBRA session defaults instead.
 
 ### Installation
 
@@ -65,7 +65,7 @@ The omics data can be used to derive the following three inputs to SPECTRA.
 |---|---|
 | **Core reactions** | These reactions will be present in the final model |
 | **Weights** | Numbers that determine the relative importance of the reactions to be included (or excluded) |
-| **Box contraints** | Lower and upper bounds to the reactions in the universal model|
+| **Box constraints** | Lower and upper bounds to the reactions in the universal model |
 
 The following code demonstrates the same for a toy network model:
 
@@ -88,34 +88,35 @@ The following code demonstrates the same for a toy network model:
 
 | Formulation | Objective | Use Case | Input Weights |
 |---|---|---|---|
-| **minNetLP** | Minimize total flux | Extracting minimal networks preserving core reactions | Non-negative weights |
-| **minNetMILP** | Minimize reaction count |  Extracting minimal networks preserving core reactions | Non-negative weights |
-| **minNetDC** | Cardinality minimization |  Extracting minimal networks preserving core reactions | Non-negative weights |
-| **tradeOff** | Maximize weighted reactions | Balancing positive vs. negative evidence | Any real values |
-| **growthOptim** | Maximize biomass + minimize flux | Biological growth optimization | Non-negative weights |
+| **minNetLP** | Minimize weighted flux (`"With-Chain"` + IRLS) | Fast LP extraction preserving core reactions | Non-negative weights |
+| **minNetMILP** | Minimize reaction count | Exact minimal networks preserving core reactions | Non-negative weights |
+| **tradeOff** | Maximize net reaction weights | Balancing positive rewards vs. negative penalties | Any signed real values |
+| **optimBiomass** | Maximize biomass − weighted flux | Biological growth optimization | Non-negative weights |
 
 ## Step 3: Model reconstruction
 
 ```matlab
 % For flux consistent universal models
-consType = 'stoichiometry'; % to use stoichiometric constraints or topology constraints
-probType = 'tradeOff'; % network inference method
-altSolMethod = {}; % method to obtain alternate solutions
-nSol = 1; % number of alternate solutions required
-solveTime = 7200; % maximum time for solving MILP problem
-tol = 1e-5; % defining the small positive number
+consType = 'stoichiometry'; % 'stoichiometry' (S*v = 0) or 'topology' (S*v >= 0)
+probType = 'tradeOff'; % 'minNetLP' (default), 'minNetMILP', 'tradeOff', or 'optimBiomass'
+altSolMethod = []; % defaults to 'coreDirection' for LP and 'pathwayExclusion' for MILP
+nSol = 1; % number of alternative solutions required
+solveTime = 7200; % maximum time (s) for solving MILP problem
+tol = 1e-5; % minimum absolute flux threshold for core reactions
 [Model_tradeOff] = spectraME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
 
 % For flux inconsistent universal models (simultaneous consistency checking + extraction)
-[Model_tradeOff] = spectraCCME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
+[Model_tradeOff, BlockedCoreRxns] = spectraCCME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
 ```
 
 ## Step 4: To Generate Alternative Solutions
 
 ```matlab
-  % Pathway exclusion (for MILP formulations like tradeOff and minNetMILP)
-  altSolMethod = 'pathwayExclusion'; % method to obtain alternate solutions
-  nSol = 5; % number of alternate solutions required
+  % Pass [] to use the formulation's default ('pathwayExclusion' for MILP
+  % formulations 'tradeOff'/'minNetMILP', 'coreDirection' for LP formulations
+  % 'minNetLP'/'optimBiomass'), or specify altSolMethod explicitly:
+  altSolMethod = 'pathwayExclusion';
+  nSol = 5; % number of alternative solutions required
   [Model_tradeoff_altSols] = spectraME(model,core,tol,consType,weights,nSol,altSolMethod,probType,solveTime); 
 ```
 

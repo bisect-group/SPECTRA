@@ -84,7 +84,7 @@ end
 
 x=solution.full;
 
-if ~isempty(x)
+if solution.stat==1 && ~isempty(x)
     flux = x(1:n);
     z = x(n+1:end);
 else

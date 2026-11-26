@@ -75,13 +75,14 @@ function result = minimalReactome(model, varargin)
 %    inclusionCutoff:   The absolute flux at which a reaction is kept
 %                       whatever its binary says. (Default: tol*1e-7)
 %    solverTol:         Feasibility, optimality and integrality tolerances
-%                       for the mixed-integer solve. Loosen it only for a
-%                       problem that will not converge: a loose integrality
-%                       tolerance lets a binary the solver switched off
-%                       still permit a flux of solverTol*ub, which is how
-%                       reactions that are not really in the answer get
-%                       counted as kept. (Default: 1e-9, the tightest the
-%                       solvers accept)
+%                       for the mixed-integer solve, or 'default' to leave
+%                       the solver's own tolerances in place. Loosen it only
+%                       for a problem that will not converge: a loose
+%                       integrality tolerance lets a binary the solver
+%                       switched off still permit a flux of solverTol*ub,
+%                       which is how reactions that are not really in the
+%                       answer get counted as kept. (Default: 1e-9, the
+%                       tightest the solvers accept)
 %    useCoupling:       Whether to apply the model's coupling constraints,
 %                       the C, d and dsense fields. Off by default, so the
 %                       problem is built from S, lb and ub alone.
@@ -195,7 +196,7 @@ parser.addParameter('preprocess', true, @(x) islogical(x) || isnumeric(x));
 parser.addParameter('nSol', 1, @isnumeric);
 parser.addParameter('solveTime', 7200, @isnumeric);
 parser.addParameter('inclusionCutoff', [], @isnumeric);
-parser.addParameter('solverTol', [], @isnumeric);
+parser.addParameter('solverTol', [], @(x) isempty(x) || isnumeric(x) || ischar(x) || (isstring(x) && isscalar(x)));
 parser.addParameter('useCoupling', false, @(x) islogical(x) || isnumeric(x));
 parser.addParameter('seed', [], @isnumeric);
 parser.addParameter('check', true, @(x) islogical(x) || isnumeric(x));
@@ -822,7 +823,7 @@ previous = -1;
 while ~isempty(pool) && previous ~= numel(pool)
     previous = numel(pool);
     n = numel(constrained.rxns);
-    [~, x] = minNet(constrained, zeros(n, 1), ones(n, 1), tol, 1, 'minNetLP');
+    [~, x] = minNet(constrained, zeros(n, 1), ones(n, 1), tol, 1, 'minNetLP', [], [], {}, {}, [], [], false, false);
     if isempty(x)
         break
     end
@@ -975,13 +976,6 @@ end
 
 function direction = settleDirections(model, core, tol, useCoupling)
 % Settles which way each forced reaction should carry its flux.
-%
-% A reaction that must carry at least tol has to be told which sign that
-% flux takes, and for a reversible one either would do. The direction is
-% read off a flux distribution that gets every forced reaction working at
-% once, built by blending a forward-biased solution with a reverse-biased
-% one until nothing is left idle - the same phase spectraME runs, and the
-% reason a core set is settled rather than guessed one reaction at a time.
 n = numel(model.rxns);
 direction = zeros(n, 1);
 if isempty(core)
@@ -990,34 +984,62 @@ end
 
 isCore = false(n, 1);
 isCore(core) = true;
-remaining = isCore;
-flux = zeros(n, 1);
+lockTol = max(0.99 * tol, tol - 1e-8);
+
+% Canonicalize reverse-only reactions on a working copy and map signs back
+workMod = model;
+irR = workMod.ub <= 0;
+tmpUb = workMod.ub(irR);
+workMod.S(:, irR) = -workMod.S(:, irR);
+if isfield(workMod, 'C') && ~isempty(workMod.C)
+    workMod.C(:, irR) = -workMod.C(:, irR);
+end
+workMod.ub(irR) = -workMod.lb(irR);
+workMod.lb(irR) = -tmpUb;
+workMod.rev = double(workMod.lb < 0);
+
+canFwd = (workMod.ub >= lockTol);
+canRev = (workMod.lb <= -lockTol);
+if any(isCore & (~canFwd) & (~canRev))
+    assertForcedFeasible(NaN, sum(isCore), tol);
+end
+
+workDir = zeros(n, 1);
+workDir(isCore & canFwd & (~canRev)) = 1;
+workDir(isCore & (~canFwd) & canRev) = -1;
+remaining = isCore & canFwd & canRev;
 stalls = 0;
 
 while any(remaining)
     before = sum(remaining);
-    flux1 = forward(model, remaining, tol, 1, useCoupling);
+    iterW = zeros(n, 1);
+    iterW(remaining) = 1.0 + 0.1 * rand(before, 1);
+
+    mPinned = workMod;
+    mPinned.lb(workDir == 1)  = max(tol, mPinned.lb(workDir == 1));
+    mPinned.ub(workDir == -1) = min(-tol, mPinned.ub(workDir == -1));
+    [flux1, ~] = forward(mPinned, remaining, tol, 1, useCoupling, [], iterW);
     assertForcedFeasible(flux1, sum(isCore), tol);
-    if sum(abs(flux)) == 0
-        flux = flux1;
-    else
-        c1 = unifrnd(0.45, 0.55, 1);
-        flux = (c1 * flux) + ((1 - c1) * flux1);
-    end
-    remaining(isCore & abs(flux) >= tol * 1e-1) = 0;
+    newly1 = remaining & (abs(flux1) >= lockTol);
+    workDir(newly1) = sign(flux1(newly1));
+    remaining(newly1) = false;
     if ~any(remaining)
         break
     end
-    flux2 = reverse(model, remaining, tol, 1, useCoupling);
+
+    mPinned = workMod;
+    mPinned.lb(workDir == 1)  = max(tol, mPinned.lb(workDir == 1));
+    mPinned.ub(workDir == -1) = min(-tol, mPinned.ub(workDir == -1));
+    [flux2, ~] = reverse(mPinned, remaining, tol, 1, useCoupling, [], iterW);
     assertForcedFeasible(flux2, sum(isCore), tol);
-    c1 = unifrnd(0.45, 0.55, 1);
-    flux = (c1 * flux) + ((1 - c1) * flux2);
-    remaining(isCore & abs(flux) >= tol * 1e-1) = 0;
+    newly2 = remaining & (abs(flux2) >= lockTol);
+    workDir(newly2) = sign(flux2(newly2));
+    remaining(newly2) = false;
     stalls = assertCoreProgress(remaining, before, stalls, tol);
 end
 
-direction(isCore & flux > 0) = 1;
-direction(isCore & flux < 0) = -1;
+direction = workDir;
+direction(irR) = -direction(irR);
 end
 
 

@@ -3,7 +3,21 @@ Model extraction
 
 Builds a context-specific model around a set of core reactions.
 ``spectraCCME`` does the consistency check and the extraction in one pass,
-for a model that is not known to be consistent.
+for a model that is not known to be consistent, while ``spectraME2`` applies
+the pure thermodynamic cone variant (ignoring finite box bounds and solving
+``minNetLP``).
+
+During the iterative direction-discovery phase, settled core reactions are
+pinned directly at ``+/-tol`` (with zero convex combinations), ``forward``
+(or ``forwardcc``) and ``reverse`` share a single random weight draw per
+round, and Stage-1 LPs are skipped automatically when ``coreRxns`` is empty
+or purely one-way. Reverse-irreversible reactions (``ub <= 0``) are oriented
+forward only on an internal working copy -- the returned model is always
+subsetted from the input model so original COBRA reaction stoichiometries
+and bounds are preserved. ``altSolMethod`` defaults to ``'coreDirection'``
+for LP formulations (``'minNetLP'``, ``'optimBiomass'``) and
+``'pathwayExclusion'`` for MILP formulations (``'minNetMILP'``,
+``'tradeOff'``).
 
 Both take ``useCoupling`` as their last argument, and both default it to
 false, so the problem is built from ``S``, ``lb`` and ``ub`` alone. Turn it
@@ -23,4 +37,4 @@ returned model is not equivalent -- a reaction whose binary is off can
 still carry a trace of flux.
 
 .. automodule:: src
-   :members: spectraME, spectraCCME, forward
+   :members: spectraME, spectraME2, spectraCCME, forward

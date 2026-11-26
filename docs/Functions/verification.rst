@@ -2,9 +2,8 @@ Verification
 ============
 
 An extraction promises that every core reaction is present and that the
-result is flux consistent. The first always holds; the second does not
-always hold for the LP formulations. ``checkExtraction`` reports on a result
-so the difference is visible rather than silent.
+result is flux consistent. ``checkExtraction`` independently verifies both
+properties on any extracted model via FVA or ``spectraCC``.
 
 Run it with the same arguments the extraction used, ``tol`` and
 ``useCoupling`` included: a check that answers a different question from

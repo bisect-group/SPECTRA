@@ -154,3 +154,17 @@ catch err
     caught = strcmp(err.identifier, 'gapfillForTasks:unknownWeight');
 end
 assert(caught, 'a weight on a reaction that does not exist was accepted');
+
+%% gapfillForTasks supports all four probTypes, including signed tradeOff weights
+for p = {'minNetLP', 'minNetMILP', 'optimBiomass', 'tradeOff'}
+    rTask = gapfillForTasks(taskDraft, universal, tasks, 1e-3, p{1}, {}, 300, 1);
+    assert(isempty(rTask.unsatisfied), ...
+        'gapfillForTasks with probType %s left unsatisfied tasks: %s', ...
+        p{1}, strjoin(rTask.unsatisfied', ', '));
+end
+signedTradeWeights = struct('rxn', {'CYTBD', 'ACALD'}, 'weight', {-5, 2});
+rSigned = gapfillForTasks(taskDraft, universal, tasks, 1e-3, 'tradeOff', ...
+    {}, 300, 1, {}, true, true, signedTradeWeights);
+assert(isempty(rSigned.unsatisfied), ...
+    'gapfillForTasks with signed tradeOff weights failed: %s', ...
+    strjoin(rSigned.unsatisfied', ', '));

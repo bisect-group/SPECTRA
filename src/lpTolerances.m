@@ -7,12 +7,13 @@ function params = lpTolerances(solverTol)
 %
 % OPTIONAL INPUTS:
 %    solverTol: The tolerance to ask for, applied to both the feasibility
-%               and optimality tolerances.
+%               and optimality tolerances, or 'default' to return {} and
+%               leave the solver's / COBRA session's tolerances in place.
 %               (Default: 1e-9, the tightest the solvers accept)
 %
 % OUTPUTS:
 %    params:    Cell array of name/value pairs to pass to solveCobraLP,
-%               as {'feasTol',t,'optTol',t}.
+%               as {'feasTol',t,'optTol',t}, or {} when solverTol is 'default'.
 %
 % NOTE:
 %    Delegates validation and the 1e-9 solver floor to milpTolerances and
@@ -21,11 +22,15 @@ function params = lpTolerances(solverTol)
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
 %
-% .. See also: milpTolerances, forward, forwardcc, reverse, minNet, growthOptim
+% .. See also: milpTolerances, forward, forwardcc, reverse, minNet, optimBiomass
 
 if nargin < 1
     solverTol = [];
 end
 milpParams = milpTolerances(solverTol);
-params = milpParams(1:4);
+if isempty(milpParams)
+    params = {};
+else
+    params = milpParams(1:4);
+end
 end

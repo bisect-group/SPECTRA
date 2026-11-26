@@ -53,7 +53,7 @@ function [A, b, csense] = couplingRows(model, nAux, useCoupling)
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
 %
-% .. See also: coupleRxnList2Rxn, minNet, tradeOff, growthOptim
+% .. See also: coupleRxnList2Rxn, minNet, tradeOff, optimBiomass
 
 if nargin < 2 || isempty(nAux)
     nAux = 0;
