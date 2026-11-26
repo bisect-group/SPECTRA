@@ -148,14 +148,16 @@ if strcmp(probType, 'minNetLP')
 % =========================================================================
 elseif strcmp(probType, 'minNetMILP')
     if isempty(inclusionCutoff)
-        milpCutoff = tol * 1e-7;
+        milpCutoff    = tol * 1e-7;
+        userSetCutoff = false;
     else
         if ~isnumeric(inclusionCutoff) || ~isscalar(inclusionCutoff) || ...
                 ~isfinite(inclusionCutoff) || inclusionCutoff <= 0
             error('minNet:badInclusionCutoff', ...
                 'inclusionCutoff must be a positive finite scalar.');
         end
-        milpCutoff = double(inclusionCutoff);
+        milpCutoff    = double(inclusionCutoff);
+        userSetCutoff = true;
     end
     tolParams = milpTolerances(solverTol);
 
@@ -285,7 +287,15 @@ elseif strcmp(probType, 'minNetMILP')
         z          = solution.int;
         selected   = z >= 0.5;
         selectedOn = ismember(groupOf, find(selected));
-        reacInd    = (direction ~= 0) | selectedOn | (abs(x(1:n)) >= milpCutoff) | ungoverned;
+        binMask    = (direction ~= 0) | selectedOn | ungoverned;
+        if userSetCutoff
+            reacInd = binMask | (abs(x(1:n)) >= milpCutoff);
+        else
+            [reacInd, x, certLPs] = localResolveMilpSupportOptionC( ...
+                x(1:n), binMask, milpCutoff, Aeq(:, 1:n), beq, csenseeq, ...
+                Acpl(:, 1:n), bcpl, csensecpl, lb(1:n), ub(1:n), warmTolCfg);
+            nLPs = nLPs + certLPs;
+        end
     else
         x        = [];
         reacInd  = [];
@@ -451,12 +461,11 @@ freeMask = (direction == 0);
 
 lb = full(double(model.lb(:)));
 ub = full(double(model.ub(:)));
-freePos = find(freeMask & (lb >= 0) & (ub > 0));
-freeNeg = find(freeMask & (ub <= 0) & (lb < 0));
-freeRev = find(freeMask & (lb < 0) & (ub > 0));
-nSplit  = numel(freeRev);
-
 w        = effWeights(:);
+freePos  = find(freeMask & (lb >= 0) & (ub > 0));
+freeNeg  = find(freeMask & (ub <= 0) & (lb < 0));
+freeRev  = find(freeMask & (lb < 0) & (ub > 0) & (w > 0));
+nSplit   = numel(freeRev);
 openFree = freeMask & ((lb < 0) | (ub > 0));
 paidMask = openFree & (w > 0);
 
@@ -748,7 +757,7 @@ function warmCfg = localResolveMilpWarmConfig(tol, solverTol)
 FLOOR      = 1e-9;
 useDefault = false;
 if isempty(solverTol)
-    effMilpTol = FLOOR;
+    effMilpTol = 1e-8;
     effLpTol   = FLOOR;
 elseif (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
         strcmpi(solverTol, 'default')
@@ -874,4 +883,112 @@ if any(isE), eqViol = full(max(abs(Ax(isE) - rhs(isE)))); end
 if any(isG), gViol  = full(max(max(0.0, rhs(isG) - Ax(isG)))); end
 if any(isL), lViol  = full(max(max(0.0, Ax(isL) - rhs(isL)))); end
 maxViol = max([bndViol, eqViol, gViol, lViol]);
+end
+
+% -------------------------------------------------------------------------
+function [reacInd, xOut, certLPs] = localResolveMilpSupportOptionC( ...
+    xRaw, binMask, milpCutoff, AeqFlux, beq, csenseeq, ...
+    AcplFlux, bcpl, csensecpl, colLb, colUb, warmCfg)
+
+n          = numel(binMask);
+xOut       = reshape(double(xRaw), n, 1);
+certLPs    = 0;
+extraTrace = (~binMask) & (abs(xOut) >= milpCutoff);
+
+% Step 0: Fast exit when no z_g = 0 reaction carries flux >= milpCutoff
+if ~any(extraTrace)
+    reacInd = binMask;
+    return;
+end
+
+Aall     = [AeqFlux; AcplFlux];
+ball     = [beq; bcpl];
+senseall = [csenseeq; csensecpl];
+milpTolP = {'feasTol', warmCfg.effMilpTol, 'optTol', warmCfg.effMilpTol};
+
+% Step 1: 1-LP feasibility check on binMask alone
+lbChk           = colLb;
+ubChk           = colUb;
+lbChk(~binMask) = 0.0;
+ubChk(~binMask) = 0.0;
+if all(lbChk <= ubChk)
+    lpChk = struct( ...
+        'A',      Aall, ...
+        'b',      ball, ...
+        'csense', senseall, ...
+        'lb',     lbChk, ...
+        'ub',     ubChk, ...
+        'c',      zeros(n, 1), ...
+        'osense', 1);
+    solChk  = solveCobraLP(lpChk, warmCfg.lpParams{:});
+    certLPs = certLPs + 1;
+    if (solChk.stat ~= 1 || isempty(solChk.full)) && (warmCfg.effMilpTol > warmCfg.effSolverTol)
+        solChk  = solveCobraLP(lpChk, milpTolP{:});
+        certLPs = certLPs + 1;
+    end
+    if solChk.stat == 1 && ~isempty(solChk.full)
+        vChk           = solChk.full(1:n);
+        vChk(~binMask) = 0.0;
+        reacInd        = binMask;
+        xOut           = vChk;
+        return;
+    end
+end
+
+% Step 2: 1-LP minimal split-variable L1 rescue over extraTrace (e.g. trace cofactors)
+allowMask           = binMask | extraTrace;
+lbRes               = colLb;
+ubRes               = colUb;
+lbRes(~allowMask)   = 0.0;
+ubRes(~allowMask)   = 0.0;
+if any(lbRes > ubRes)
+    reacInd = allowMask;
+    return;
+end
+
+tracePos = find(extraTrace & (lbRes >= 0) & (ubRes > 0));
+traceNeg = find(extraTrace & (ubRes <= 0) & (lbRes < 0));
+traceRev = find(extraTrace & (lbRes < 0) & (ubRes > 0));
+nSplit   = numel(traceRev);
+
+splitLb         = zeros(nSplit, 1);
+splitUb         = -colLb(traceRev);
+lbRes(traceRev) = 0.0;
+
+if nSplit > 0
+    Ares = [Aall, -Aall(:, traceRev)];
+else
+    Ares = Aall;
+end
+
+cRes           = zeros(n + nSplit, 1);
+cRes(tracePos) = 1.0;
+cRes(traceNeg) = -1.0;
+cRes(traceRev) = 1.0;
+if nSplit > 0
+    cRes(n+1:end) = 1.0;
+end
+
+lpRes = struct( ...
+    'A',      Ares, ...
+    'b',      ball, ...
+    'csense', senseall, ...
+    'lb',     [lbRes; splitLb], ...
+    'ub',     [ubRes; splitUb], ...
+    'c',      cRes, ...
+    'osense', 1);
+
+solRes  = solveCobraLP(lpRes, milpTolP{:});
+certLPs = certLPs + 1;
+if solRes.stat == 1 && ~isempty(solRes.full)
+    vRes = solRes.full(1:n);
+    if nSplit > 0
+        vRes(traceRev) = vRes(traceRev) - solRes.full(n+1:end);
+    end
+    vRes(~allowMask) = 0.0;
+    reacInd          = binMask | (extraTrace & (abs(vRes) >= milpCutoff));
+    xOut             = vRes;
+else
+    reacInd = allowMask;
+end
 end

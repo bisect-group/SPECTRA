@@ -55,6 +55,7 @@ if ~exist('indicatorGroups', 'var')
 end
 if ~exist('inclusionCutoff', 'var') || isempty(inclusionCutoff)
     inclusionCutoff = tol * 1e-7;
+    userSetCutoff   = false;
 else
     if ~isnumeric(inclusionCutoff) || ~isscalar(inclusionCutoff) || ...
             ~isfinite(inclusionCutoff) || inclusionCutoff <= 0
@@ -62,6 +63,7 @@ else
             'inclusionCutoff must be a positive finite scalar.');
     end
     inclusionCutoff = double(inclusionCutoff);
+    userSetCutoff   = true;
 end
 if ~exist('solverTol', 'var')
     solverTol = [];
@@ -242,7 +244,15 @@ if stat == 1 || stat == 3
     z          = solution.int;
     selected   = z(1:nGroups) >= 0.5;
     selectedOn = ismember(groupOf, find(selected));
-    reacInd    = (direction ~= 0) | selectedOn | (abs(x(1:n)) >= inclusionCutoff) | ungoverned;
+    binMask    = (direction ~= 0) | selectedOn | ungoverned;
+    if userSetCutoff
+        reacInd = binMask | (abs(x(1:n)) >= inclusionCutoff);
+    else
+        [reacInd, x, certLPs] = localResolveTradeOffSupportOptionC( ...
+            x(1:n), binMask, inclusionCutoff, Aeq1(:, 1:n), beq1, csenseeq1, ...
+            Acpl(:, 1:n), bcpl, csensecpl, lb(1:n), ub(1:n), warmCfg);
+        nLPs = nLPs + certLPs;
+    end
 else
     x        = [];
     reacInd  = [];
@@ -257,7 +267,7 @@ function warmCfg = localResolveTradeOffWarmConfig(solverTol)
 FLOOR      = 1e-9;
 useDefault = false;
 if isempty(solverTol)
-    effMilpTol    = FLOOR;
+    effMilpTol    = 1e-8;
     effLpTol      = FLOOR;
     warmSolverArg = FLOOR;
 elseif (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
@@ -473,4 +483,109 @@ if any(isE), eqViol = full(max(abs(Ax(isE) - rhs(isE)))); end
 if any(isG), gViol  = full(max(max(0.0, rhs(isG) - Ax(isG)))); end
 if any(isL), lViol  = full(max(max(0.0, Ax(isL) - rhs(isL)))); end
 maxViol = max([bndViol, eqViol, gViol, lViol]);
+end
+
+% -------------------------------------------------------------------------
+function [reacInd, xOut, certLPs] = localResolveTradeOffSupportOptionC( ...
+    xRaw, binMask, tradeCutoff, AeqFlux, beq, csenseeq, ...
+    AcplFlux, bcpl, csensecpl, colLb, colUb, warmCfg)
+
+n          = numel(binMask);
+xOut       = reshape(double(xRaw), n, 1);
+certLPs    = 0;
+extraTrace = (~binMask) & (abs(xOut) >= tradeCutoff);
+
+if ~any(extraTrace)
+    reacInd = binMask;
+    return;
+end
+
+Aall     = [AeqFlux; AcplFlux];
+ball     = [beq; bcpl];
+senseall = [csenseeq; csensecpl];
+milpTolP = {'feasTol', warmCfg.effMilpTol, 'optTol', warmCfg.effMilpTol};
+
+lbChk           = colLb;
+ubChk           = colUb;
+lbChk(~binMask) = 0.0;
+ubChk(~binMask) = 0.0;
+if all(lbChk <= ubChk)
+    lpChk = struct( ...
+        'A',      Aall, ...
+        'b',      ball, ...
+        'csense', senseall, ...
+        'lb',     lbChk, ...
+        'ub',     ubChk, ...
+        'c',      zeros(n, 1), ...
+        'osense', 1);
+    solChk  = solveCobraLP(lpChk, warmCfg.lpParams{:});
+    certLPs = certLPs + 1;
+    if (solChk.stat ~= 1 || isempty(solChk.full)) && (warmCfg.effMilpTol > warmCfg.effLpTol)
+        solChk  = solveCobraLP(lpChk, milpTolP{:});
+        certLPs = certLPs + 1;
+    end
+    if solChk.stat == 1 && ~isempty(solChk.full)
+        vChk           = solChk.full(1:n);
+        vChk(~binMask) = 0.0;
+        reacInd        = binMask;
+        xOut           = vChk;
+        return;
+    end
+end
+
+allowMask         = binMask | extraTrace;
+lbRes             = colLb;
+ubRes             = colUb;
+lbRes(~allowMask) = 0.0;
+ubRes(~allowMask) = 0.0;
+if any(lbRes > ubRes)
+    reacInd = allowMask;
+    return;
+end
+
+tracePos = find(extraTrace & (lbRes >= 0) & (ubRes > 0));
+traceNeg = find(extraTrace & (ubRes <= 0) & (lbRes < 0));
+traceRev = find(extraTrace & (lbRes < 0) & (ubRes > 0));
+nSplit   = numel(traceRev);
+
+splitLb         = zeros(nSplit, 1);
+splitUb         = -colLb(traceRev);
+lbRes(traceRev) = 0.0;
+
+if nSplit > 0
+    Ares = [Aall, -Aall(:, traceRev)];
+else
+    Ares = Aall;
+end
+
+cRes           = zeros(n + nSplit, 1);
+cRes(tracePos) = 1.0;
+cRes(traceNeg) = -1.0;
+cRes(traceRev) = 1.0;
+if nSplit > 0
+    cRes(n+1:end) = 1.0;
+end
+
+lpRes = struct( ...
+    'A',      Ares, ...
+    'b',      ball, ...
+    'csense', senseall, ...
+    'lb',     [lbRes; splitLb], ...
+    'ub',     [ubRes; splitUb], ...
+    'c',      cRes, ...
+    'osense', 1);
+
+solRes  = solveCobraLP(lpRes, milpTolP{:});
+certLPs = certLPs + 1;
+if solRes.stat == 1 && ~isempty(solRes.full)
+    vRes = solRes.full(1:n);
+    if nSplit > 0
+        vRes(traceRev) = vRes(traceRev) - solRes.full(n+1:end);
+    end
+    vRes(~allowMask) = 0.0;
+    reacInd          = binMask | (extraTrace & (abs(vRes) >= tradeCutoff));
+    xOut             = vRes;
+else
+    reacInd = allowMask;
+end
 end

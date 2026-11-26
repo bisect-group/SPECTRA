@@ -303,7 +303,7 @@ blocked = {};
 essential = {};
 if opt.preprocess
     [blocked, essential] = preprocessConditions(conditions, originalRxns, ...
-        keepRxns, tol, opt.seed);
+        keepRxns, tol, opt.seed, opt.solverTol);
 end
 
 protectedRxns = setdiff(union(keepRxns, essential), blocked);
@@ -736,7 +736,7 @@ end
 
 
 function [blocked, essential] = preprocessConditions(conditions, originalRxns, ...
-    keepRxns, tol, seed)
+    keepRxns, tol, seed, solverTol)
 % Decides before the MILP what the MILP would have had to decide.
 %
 % Both passes are exact, so the optimum is unchanged - only the number of
@@ -745,8 +745,17 @@ function [blocked, essential] = preprocessConditions(conditions, originalRxns, .
 % reaction useless under the growth medium may be the only route a task has,
 % while a reaction some task cannot do without has to be in the answer
 % whatever the growth condition thinks of it.
-% Any nonzero flux counts, which is what fastcc does; see below.
-detectionCutoff = getCobraSolverParams('LP', 'feasTol');
+% Any nonzero flux above the LP feasibility tolerance counts, matching the
+% tolerance spectraCC actually solves at (1e-9 by default; note that calling
+% getCobraSolverParams('LP', 'feasTol') without struct() returns 1e-6).
+if nargin < 6 || isempty(solverTol)
+    detectionCutoff = 1e-9;
+elseif (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
+        strcmpi(solverTol, 'default')
+    detectionCutoff = getCobraSolverParams('LP', 'feasTol', struct());
+else
+    detectionCutoff = max(1e-9, double(solverTol));
+end
 
 blocked = [];
 for k = 1:numel(conditions)
@@ -758,7 +767,7 @@ for k = 1:numel(conditions)
     % correctness. spectraCC reports indices into the model it was given,
     % which holds the task's own scaffolding as well as the network.
     consistent = spectraCC(conditions{k}.model, tol, 'stoichiometry', seed, ...
-        detectionCutoff);
+        detectionCutoff, false, solverTol);
     here = setdiff(originalRxns, conditions{k}.model.rxns(consistent));
     fprintf('minimalReactome: %s: %d of %d reactions cannot carry flux.\n', ...
         conditions{k}.label, numel(here), numel(originalRxns));

@@ -24,8 +24,8 @@ function params = lpTolerances(solverTol)
 %
 % .. See also: milpTolerances, forward, forwardcc, reverse, minNet, optimBiomass
 
-if nargin < 1
-    solverTol = [];
+if nargin < 1 || isempty(solverTol)
+    solverTol = 1e-9;
 end
 milpParams = milpTolerances(solverTol);
 if isempty(milpParams)

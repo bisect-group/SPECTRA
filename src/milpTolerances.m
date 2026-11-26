@@ -7,10 +7,11 @@ function params = milpTolerances(solverTol)
 %
 % OPTIONAL INPUTS:
 %    solverTol: The tolerance to ask for, applied to all three of the
-%               feasibility, optimality and integrality tolerances, or
-%               'default' to return {} and leave the solver's / COBRA
-%               session's tolerances in place.
-%               (Default: 1e-9, the tightest the solvers accept)
+%               feasibility, optimality and integrality tolerances when a
+%               scalar is given, or 'default' to return {} and leave the
+%               solver's / COBRA session's tolerances in place.
+%               (Default when omitted/empty: feasTol = 1e-8, optTol = 1e-8,
+%               intTol = 1e-9)
 %
 % OUTPUTS:
 %    params:    Cell array of name/value pairs to pass to solveCobraMILP,
@@ -51,7 +52,8 @@ function params = milpTolerances(solverTol)
 FLOOR = 1e-9;
 
 if nargin < 1 || isempty(solverTol)
-    solverTol = FLOOR;
+    params = {'feasTol', 1e-8, 'optTol', 1e-8, 'intTol', FLOOR};
+    return
 end
 if (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
         strcmpi(solverTol, 'default')

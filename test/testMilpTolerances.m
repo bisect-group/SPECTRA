@@ -30,9 +30,11 @@ assert(params{2*intAt} <= 1e-9, ...
     'the integrality tolerance is %g, which is loose enough to leak binaries', ...
     params{2*intAt});
 
-%% the default is the tightest the solvers accept
-assert(all(cell2mat(params(2:2:end)) == 1e-9), ...
-    'the default tolerance is not 1e-9');
+%% the default uses 1e-9 intTol and 1e-8 feasTol/optTol
+feasAt = find(strcmp(names, 'feasTol'));
+optAt  = find(strcmp(names, 'optTol'));
+assert(params{2*feasAt} == 1e-8 && params{2*optAt} == 1e-8 && params{2*intAt} == 1e-9, ...
+    'the default MILP tolerances are not feasTol=1e-8, optTol=1e-8, intTol=1e-9');
 
 %% a tolerance below the floor is raised, not passed through and dropped
 % Gurobi refuses any of the three below 1e-9 and keeps whatever it had,
