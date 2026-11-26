@@ -616,12 +616,10 @@ elseif strcmp(probType, 'minNetMILP')
         stat     = 1;
         return;
     end
-    if ~any(corePinnedMask) && isempty(witnessFlux) && isempty(prevSols) && ~zeroFeas
-        witnessFlux = localOptionalWarmStart(model, useCoupling);
-    end
-    [reacInd, x, stat, selected] = minNet(model, direction, milpWeights, tol, ...
-        steadystate, 'minNetMILP', solveTime, witnessFlux, prevSols, ...
+    [reacInd, x, stat, selected, warmLPs] = minNet(model, direction, milpWeights, tol, ...
+        steadystate, 'minNetMILP', solveTime, [], prevSols, ...
         indicatorGroups, inclusionCutoff, solverTol, useCoupling);
+    extraLPs = extraLPs + warmLPs;
     if stat == 1 || stat == 3
         [reacInd, cLPs] = localCertifyMilpSupport(model, reacInd, x, corePinnedMask, ...
             ~isempty(indicatorGroups), steadystate, useCoupling, solverTol, tolCfg);
@@ -649,12 +647,10 @@ elseif strcmp(probType, 'tradeOff')
         stat     = 1;
         return;
     end
-    if ~any(corePinnedMask) && isempty(witnessFlux) && isempty(prevSols) && ~zeroFeas
-        witnessFlux = localOptionalWarmStart(model, useCoupling);
-    end
-    [reacInd, x, stat, selected] = tradeOff(model, direction, milpWeights, tol, ...
-        steadystate, solveTime, witnessFlux, prevSols, indicatorGroups, ...
+    [reacInd, x, stat, selected, warmLPs] = tradeOff(model, direction, milpWeights, tol, ...
+        steadystate, solveTime, [], prevSols, indicatorGroups, ...
         inclusionCutoff, solverTol, useCoupling);
+    extraLPs = extraLPs + warmLPs;
     if stat == 1 || stat == 3
         [reacInd, cLPs] = localCertifyMilpSupport(model, reacInd, x, corePinnedMask, ...
             ~isempty(indicatorGroups), steadystate, useCoupling, solverTol, tolCfg);
@@ -716,22 +712,6 @@ if tf && useCoupling && isfield(model, 'C') && ~isempty(model.C)
     d  = reshape(model.d, [], 1);
     ds = reshape(model.dsense, [], 1);
     tf = ~any(((ds == 'G') & (d > 0)) | ((ds == 'L') & (d < 0)) | ((ds == 'E') & (d ~= 0)));
-end
-end
-
-% -------------------------------------------------------------------------
-function x0 = localOptionalWarmStart(model, useCoupling)
-x0 = [];
-if ~any(model.c ~= 0)
-    return;
-end
-mWarm = model;
-if ~useCoupling && isfield(mWarm, 'C')
-    mWarm = rmfield(mWarm, intersect(fieldnames(mWarm), {'C', 'd', 'dsense', 'ctrs'}));
-end
-sol = optimizeCbModel(mWarm);
-if isfield(sol, 'stat') && sol.stat == 1 && isfield(sol, 'x') && ~isempty(sol.x)
-    x0 = sol.x;
 end
 end
 

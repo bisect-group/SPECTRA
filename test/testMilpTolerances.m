@@ -125,6 +125,27 @@ spectraME(model, core, 1e-4, 'stoichiometry', ones(n,1), 1, 'coreDirection', ...
 assert(isequal([lpFeasBefore, lpOptBefore], [lpFeasAfter, lpOptAfter]), ...
     'LP solves mutated global CBT_LP_PARAMS');
 
+%% MILP warm starts run automatically across empty-core, one-way-core, and tradeOff
+growingZeroC = growing;
+growingZeroC.c(:) = 0;
+[keptZeroC, lpsZeroC] = spectraME(growingZeroC, [], 1e-4, 'stoichiometry', ...
+    ones(n, 1), 1, [], 'minNetMILP', 60, false, {}, 1);
+assert(lpsZeroC > 0 && numel(keptZeroC.rxns) > 0, ...
+    'empty-core minNetMILP with forced growth and c=0 should run LP warm start');
+
+irrevCore = findRxnIDs(model, {'PFK'});
+[keptIrrev, lpsIrrev] = spectraME(model, irrevCore, 1e-4, 'stoichiometry', ...
+    ones(n, 1), 1, [], 'minNetMILP', 60, false, {}, 1);
+assert(lpsIrrev > 0 && ismember('PFK', keptIrrev.rxns), ...
+    'irreversible-core minNetMILP should run sparse LP warm start');
+
+signedW = -ones(n, 1);
+signedW(irrevCore) = 0;
+[keptTrade, lpsTrade] = spectraME(model, irrevCore, 1e-4, 'stoichiometry', ...
+    signedW, 1, [], 'tradeOff', 60, false, {}, 1);
+assert(lpsTrade > 0 && ismember('PFK', keptTrade.rxns), ...
+    'signed tradeOff should run sparse LP warm start and polish');
+
 
 function values = readMilpParams()
 % Returns the session's MILP tolerances, globals included.

@@ -1,6 +1,6 @@
-function [reacInd, x, stat, selected] = tradeOff(model, direction, weights, tol, steadyState, solveTime, x0, prevSols, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
+function [reacInd, x, stat, selected, nLPs] = tradeOff(model, direction, weights, tol, steadyState, solveTime, x0, prevSols, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
 % USAGE:
-%   [reacInd, x, stat, selected] = tradeOff(model, direction, weights, tol, steadyState, solveTime, x0, prevSols, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
+%   [reacInd, x, stat, selected, nLPs] = tradeOff(model, direction, weights, tol, steadyState, solveTime, x0, prevSols, indicatorGroups, inclusionCutoff, solverTol, useCoupling)
 %
 % INPUTS:
 %   model:           COBRA model structure.
@@ -16,7 +16,9 @@ function [reacInd, x, stat, selected] = tradeOff(model, direction, weights, tol,
 %
 % OPTIONAL INPUTS:
 %   solveTime:       Time limit in seconds for the MILP solve (Default: 7200).
-%   x0:              Initial feasible flux vector for MIP warm start (Default: []).
+%   x0:              Initial feasible flux vector for MIP warm start (Default: [];
+%                    when empty and prevSols is empty, a sparse LP + unsplit
+%                    polishing warm start is computed automatically).
 %   prevSols:        Cell array of previously excluded binary solution sets (Default: {}).
 %   indicatorGroups: Cell array of reaction index vectors sharing one binary.
 %                    When provided, weights must hold one entry per group;
@@ -32,6 +34,7 @@ function [reacInd, x, stat, selected] = tradeOff(model, direction, weights, tol,
 %   x:               Continuous flux vector from the MILP solution.
 %   stat:            MILP solver status (1 = optimal, 3 = time-limit incumbent).
 %   selected:        Logical vector over MILP binary groups (z >= 0.5).
+%   nLPs:            Number of LPs solved during warm-start generation/polishing.
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
@@ -69,9 +72,11 @@ else
     useCoupling = logical(useCoupling);
 end
 
+nLPs      = 0;
 [m, n]    = size(model.S);
 direction = reshape(double(direction), n, 1);
 dir0      = (direction == 0);
+tolParams = milpTolerances(solverTol);
 
 if ~isnumeric(weights) || isempty(weights) || any(~isfinite(weights(:)))
     error('tradeOff:badWeights', 'weights must be finite numeric values (positive, zero, or negative).');
@@ -84,6 +89,7 @@ isRev = (lb < 0);
 
 [groupOf, nGroups, ungoverned] = resolveIndicatorGroups(indicatorGroups, dir0, n);
 governed = (groupOf > 0);
+govIdx   = find(governed);
 govIrr   = find(governed & (~isRev));
 govRev   = find(governed & isRev);
 nIrr     = numel(govIrr);
@@ -104,6 +110,35 @@ else
             numel(weights), nGroups);
     end
     groupWeights = weights(:);
+end
+
+corePinnedMask = ~dir0;
+if ~any(corePinnedMask) && isempty(prevSols) && isempty(indicatorGroups) && ...
+        all(groupWeights < 0) && localZeroFluxIsFeasible(model, useCoupling)
+    reacInd  = false(n, 1);
+    x        = zeros(n, 1);
+    stat     = 1;
+    selected = false(nGroups, 1);
+    return;
+end
+
+warmCfg = localResolveTradeOffWarmConfig(solverTol);
+if isempty(x0) && isempty(prevSols)
+    negGroupW    = max(0.0, -groupWeights);
+    wWarm        = zeros(n, 1);
+    runWarmIRLS  = false;
+    if any(negGroupW > 0) && ~isempty(govIdx)
+        grpSizes      = accumarray(groupOf(govIdx), 1, [nGroups, 1]);
+        wWarm(govIdx) = negGroupW(groupOf(govIdx)) ./ max(1, grpSizes(groupOf(govIdx)));
+        runWarmIRLS   = true;
+    end
+    [~, vWarm, statWarm, ~, warmLPs] = minNet(model, direction, wWarm, tol, ...
+        steadyState, 'minNetLP', [], [], {}, {}, [], warmCfg.warmSolverArg, ...
+        useCoupling, runWarmIRLS);
+    nLPs = nLPs + warmLPs;
+    if statWarm == 1 && ~isempty(vWarm)
+        x0 = vWarm;
+    end
 end
 
 % Decision variables: [v (n); z (nGroups); a_fwd (n_rev); b_rev (n_rev)]
@@ -191,20 +226,17 @@ MILPproblem = struct( ...
     'csense',  [csenseeq1; csenseeq2; csenseineq1; csenseineq2; csenseineq3; csenseineq4; csenseineq5; csensecpl]);
 
 if ~isempty(x0) && numel(x0) >= n && ~any(isnan(x0(1:n)))
-    x0Flux = reshape(double(x0(1:n)), n, 1);
-    warm   = false(nGroups, 1);
-    if isempty(indicatorGroups)
-        on = abs(x0Flux) >= 0.99 * tol;
-        warm(groupOf(governed & on)) = true;
-        aWarm = double(x0Flux(govRev) >= 0.99 * tol);
-        bWarm = double(x0Flux(govRev) <= -0.99 * tol);
-        MILPproblem.x0 = [x0Flux; double(warm); aWarm; bWarm];
+    [x0Full, polLPs] = localBuildPolishedTradeOffStart( ...
+        MILPproblem, Aeq1(:, 1:n), beq1, csenseeq1, Acpl(:, 1:n), bcpl, csensecpl, ...
+        x0(1:n), groupOf, govIrr, govRev, isRev, nGroups, tol, warmCfg);
+    nLPs = nLPs + polLPs;
+    if ~isempty(x0Full)
+        MILPproblem.x0 = x0Full;
     end
 end
 
-tolParams = milpTolerances(solverTol);
-solution  = solveCobraMILP(MILPproblem, 'timeLimit', solveTime, tolParams{:});
-stat      = solution.stat;
+solution = solveCobraMILP(MILPproblem, 'timeLimit', solveTime, tolParams{:});
+stat     = solution.stat;
 if stat == 1 || stat == 3
     x          = solution.cont;
     z          = solution.int;
@@ -216,4 +248,229 @@ else
     reacInd  = [];
     selected = [];
 end
+end
+
+% =========================================================================
+% tradeOff Warm-Start & Unsplit Feasibility Polisher
+% =========================================================================
+function warmCfg = localResolveTradeOffWarmConfig(solverTol)
+FLOOR      = 1e-9;
+useDefault = false;
+if isempty(solverTol)
+    effMilpTol    = FLOOR;
+    effLpTol      = FLOOR;
+    warmSolverArg = FLOOR;
+elseif (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
+        strcmpi(solverTol, 'default')
+    milpFeas      = getCobraSolverParams('MILP', {'feasTol'}, struct());
+    effMilpTol    = max(FLOOR, double(milpFeas));
+    effLpTol      = FLOOR;
+    warmSolverArg = FLOOR;
+    useDefault    = true;
+else
+    effMilpTol    = max(FLOOR, double(solverTol));
+    effLpTol      = effMilpTol;
+    warmSolverArg = effLpTol;
+end
+
+warmCfg = struct();
+warmCfg.effLpTol      = effLpTol;
+warmCfg.effMilpTol    = effMilpTol;
+warmCfg.warmSolverArg = warmSolverArg;
+warmCfg.useDefault    = useDefault;
+warmCfg.lpParams      = {'feasTol', effLpTol, 'optTol', effLpTol};
+end
+
+% -------------------------------------------------------------------------
+function tf = localZeroFluxIsFeasible(model, useCoupling)
+tf = all(model.lb <= 0) && all(model.ub >= 0);
+if tf && useCoupling && isfield(model, 'C') && ~isempty(model.C)
+    d  = reshape(model.d, [], 1);
+    ds = reshape(model.dsense, [], 1);
+    tf = ~any(((ds == 'G') & (d > 0)) | ((ds == 'L') & (d < 0)) | ((ds == 'E') & (d ~= 0)));
+end
+end
+
+% -------------------------------------------------------------------------
+function [x0Full, polLPs] = localBuildPolishedTradeOffStart( ...
+    MILPproblem, AeqFlux, beq, csenseeq, AcplFlux, bcpl, csensecpl, ...
+    rawFlux, groupOf, govIrr, govRev, isRev, nGroups, tol, warmCfg)
+
+x0Full = [];
+polLPs = 0;
+n      = size(AeqFlux, 2);
+colLb  = MILPproblem.lb(1:n);
+colUb  = MILPproblem.ub(1:n);
+vIn    = reshape(double(rawFlux), n, 1);
+nRev   = numel(govRev);
+
+membersOf = cell(nGroups, 1);
+for g = 1:nGroups
+    membersOf{g} = find(groupOf == g);
+end
+
+Apol     = [AeqFlux; AcplFlux];
+bpol     = [beq; bcpl];
+sensepol = [csenseeq; csensecpl];
+cuts     = [0.99 * tol, max(10.0 * warmCfg.effLpTol, 1e-11)];
+
+for cIdx = 1:numel(cuts)
+    cut     = cuts(cIdx);
+    warm    = false(nGroups, 1);
+    revSign = zeros(n, 1);
+
+    for g = 1:nGroups
+        mem = membersOf{g};
+        if isempty(mem)
+            continue;
+        end
+        forcedG = any((colLb(mem) > 0) | (colUb(mem) < 0));
+        wantG   = forcedG || any(abs(vIn(mem)) >= cut);
+        if ~wantG
+            continue;
+        end
+
+        okGroup  = true;
+        tmpSigns = zeros(numel(mem), 1);
+        for k = 1:numel(mem)
+            idx = mem(k);
+            if ~isRev(idx)
+                if colUb(idx) < tol
+                    okGroup = false;
+                    break;
+                end
+            else
+                canF = (colUb(idx) >= tol);
+                canR = (colLb(idx) <= -tol);
+                if vIn(idx) > 0 && canF
+                    tmpSigns(k) = 1;
+                elseif vIn(idx) < 0 && canR
+                    tmpSigns(k) = -1;
+                elseif colUb(idx) < 0 && canR
+                    tmpSigns(k) = -1;
+                elseif canF && ~canR
+                    tmpSigns(k) = 1;
+                elseif canR && ~canF
+                    tmpSigns(k) = -1;
+                elseif canF
+                    tmpSigns(k) = 1;
+                else
+                    okGroup = false;
+                    break;
+                end
+            end
+        end
+
+        if okGroup
+            warm(g) = true;
+            for k = 1:numel(mem)
+                if isRev(mem(k))
+                    revSign(mem(k)) = tmpSigns(k);
+                end
+            end
+        end
+    end
+
+    lbPol   = colLb;
+    ubPol   = colUb;
+    offMask = false(n, 1);
+
+    if ~isempty(govIrr)
+        onIrr = warm(groupOf(govIrr));
+        irrOn = govIrr(onIrr);
+        irrOff = govIrr(~onIrr);
+        if ~isempty(irrOn)
+            lbPol(irrOn) = max(tol, lbPol(irrOn));
+        end
+        if ~isempty(irrOff)
+            lbPol(irrOff)  = 0.0;
+            ubPol(irrOff)  = 0.0;
+            offMask(irrOff) = true;
+        end
+    end
+
+    aWarm = zeros(nRev, 1);
+    bWarm = zeros(nRev, 1);
+    if nRev > 0
+        onRev = warm(groupOf(govRev));
+        for k = 1:nRev
+            idx = govRev(k);
+            if ~onRev(k)
+                lbPol(idx)   = 0.0;
+                ubPol(idx)   = 0.0;
+                offMask(idx) = true;
+            elseif revSign(idx) >= 0
+                aWarm(k)   = 1.0;
+                lbPol(idx) = max(tol, lbPol(idx));
+            else
+                bWarm(k)   = 1.0;
+                ubPol(idx) = min(-tol, ubPol(idx));
+            end
+        end
+    end
+
+    if any(lbPol > ubPol)
+        continue;
+    end
+
+    % Fast 0-LP check when rawFlux already satisfies tradeOff constraints
+    vTry          = vIn;
+    vTry(offMask) = 0.0;
+    vTry          = min(ubPol, max(lbPol, vTry));
+    cand0         = [vTry; double(warm); aWarm; bWarm];
+    if localMaxMilpStartViolation(MILPproblem, cand0) <= 0.5 * warmCfg.effMilpTol
+        x0Full = cand0;
+        return;
+    end
+
+    % 1-LP unsplit polish enforcing exact tradeOff bounds (v_off = 0, |v_on| >= tol)
+    LPpol = struct( ...
+        'A',      Apol, ...
+        'b',      bpol, ...
+        'csense', sensepol, ...
+        'lb',     lbPol, ...
+        'ub',     ubPol, ...
+        'c',      zeros(n, 1), ...
+        'osense', 1);
+
+    solPol = solveCobraLP(LPpol, warmCfg.lpParams{:});
+    polLPs = polLPs + 1;
+    if (solPol.stat ~= 1 || isempty(solPol.full)) && warmCfg.useDefault
+        solPol = solveCobraLP(LPpol);
+        polLPs = polLPs + 1;
+    end
+
+    if solPol.stat == 1 && ~isempty(solPol.full)
+        vPol          = solPol.full(1:n);
+        vPol(offMask) = 0.0;
+        vPol          = min(ubPol, max(lbPol, vPol));
+        candPol       = [vPol; double(warm); aWarm; bWarm];
+        if localMaxMilpStartViolation(MILPproblem, candPol) <= 0.95 * warmCfg.effMilpTol
+            x0Full = candPol;
+        elseif strcmpi(getCobraSolver('MILP'), 'gurobi')
+            x0Full = [nan(n, 1); double(warm); aWarm; bWarm];
+        else
+            x0Full = candPol;
+        end
+        return;
+    end
+end
+end
+
+% -------------------------------------------------------------------------
+function maxViol = localMaxMilpStartViolation(MILPproblem, xVec)
+bndViol = max([0.0; MILPproblem.lb - xVec; xVec - MILPproblem.ub]);
+Ax      = MILPproblem.A * xVec;
+rhs     = MILPproblem.b;
+cs      = MILPproblem.csense;
+isE     = (cs == 'E');
+isG     = (cs == 'G');
+isL     = (cs == 'L');
+eqViol  = 0.0;
+gViol   = 0.0;
+lViol   = 0.0;
+if any(isE), eqViol = full(max(abs(Ax(isE) - rhs(isE)))); end
+if any(isG), gViol  = full(max(max(0.0, rhs(isG) - Ax(isG)))); end
+if any(isL), lViol  = full(max(max(0.0, Ax(isL) - rhs(isL)))); end
+maxViol = max([bndViol, eqViol, gViol, lViol]);
 end

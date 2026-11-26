@@ -17,9 +17,12 @@ function [reacInd, x, stat, selected, nLPs] = minNet(model, direction, weights, 
 %                    with "With-Chain" median-normalized weights) or
 %                    'minNetMILP' (exact binary reaction-count minimization).
 %   solveTime:       Time limit in seconds for 'minNetMILP' (Default: 7200).
-%   x0:              Initial feasible flux vector (MIP incumbent warm start
-%                    for 'minNetMILP'; optional Pass-0 flux vector when
-%                    already solved at >= tol for 'minNetLP').
+%   x0:              Initial feasible flux vector (optional MIP incumbent
+%                    warm start for 'minNetMILP' — when empty and prevSols
+%                    is empty, a sparse Split-Variable minNetLP + unsplit
+%                    polishing warm start is computed automatically; optional
+%                    Pass-0 flux vector when already solved at >= tol for
+%                    'minNetLP').
 %   prevSols:        Cell array of excluded binary solution sets ('minNetMILP').
 %   indicatorGroups: Cell array of reaction index vectors sharing one binary
 %                    in 'minNetMILP' (Default: one binary per free reaction).
@@ -35,10 +38,10 @@ function [reacInd, x, stat, selected, nLPs] = minNet(model, direction, weights, 
 %
 % OUTPUTS:
 %   reacInd:         Logical mask of reactions retained in the extracted model.
-%   x:               Flux solution vector (n x 1 for 'minNetLP').
+%   x:               Flux solution vector (n x 1).
 %   stat:            Solver optimization status (1 = optimal, 3 = time-limit incumbent).
 %   selected:        Logical vector over MILP binary groups ([] for 'minNetLP').
-%   nLPs:            Number of LPs solved (0 for 'minNetMILP').
+%   nLPs:            Number of LPs solved (including MILP warm-start LPs).
 %
 % .. Author:
 %       - Pavan Kumar S, BioSystems Engineering and control (BiSECt) lab, IIT Madras
@@ -154,6 +157,7 @@ elseif strcmp(probType, 'minNetMILP')
         end
         milpCutoff = double(inclusionCutoff);
     end
+    tolParams = milpTolerances(solverTol);
 
     [groupOf, nGroups, ungoverned] = resolveIndicatorGroups(indicatorGroups, dir0, n);
     governed = find(groupOf > 0);
@@ -174,6 +178,34 @@ elseif strcmp(probType, 'minNetMILP')
                  'members.'], numel(weights), nGroups);
         end
         groupWeights = weights(:);
+    end
+
+    corePinnedMask = ~dir0;
+    if ~any(corePinnedMask) && isempty(prevSols) && isempty(indicatorGroups) && ...
+            all(groupWeights > 0) && localZeroFluxIsFeasible(model, useCoupling)
+        reacInd  = false(n, 1);
+        x        = zeros(n, 1);
+        stat     = 1;
+        selected = false(nGroups, 1);
+        return;
+    end
+
+    warmTolCfg = localResolveMilpWarmConfig(tol, solverTol);
+    if isempty(x0) && isempty(prevSols)
+        wWarm = zeros(n, 1);
+        if nGov > 0
+            grpSizes = accumarray(groupOf(governed), 1, [nGroups, 1]);
+            wWarm(governed) = groupWeights(groupOf(governed)) ./ max(1, grpSizes(groupOf(governed)));
+        end
+        effWarmW = localPrepareMergedWeights( ...
+            model.S, model.lb, model.ub, corePinnedMask, wWarm, steadyState);
+        [vWarm, statWarm, warmLPs] = localRunSplitMinNetIRLS( ...
+            model, direction, effWarmW, steadyState, useCoupling, warmTolCfg, ...
+            [1e-3, 1e-5, 1e-6, 1e-8], []);
+        nLPs = nLPs + warmLPs;
+        if statWarm == 1 && ~isempty(vWarm)
+            x0 = vWarm;
+        end
     end
 
     f   = [zeros(n, 1); groupWeights];
@@ -237,15 +269,16 @@ elseif strcmp(probType, 'minNetMILP')
         'csense',  [csenseeq; csenseineq1; csenseineq2; csenseineq3; csensecpl]);
 
     if ~isempty(x0) && numel(x0) >= n && ~any(isnan(x0(1:n)))
-        x0Flux = reshape(double(x0(1:n)), n, 1);
-        warm   = false(nGroups, 1);
-        on     = abs(x0Flux) > 1e-12;
-        warm(groupOf(governed(on(governed)))) = true;
-        MILPproblem.x0 = [x0Flux; double(warm)];
+        [x0Full, polLPs] = localBuildPolishedMilpStart( ...
+            MILPproblem, Aeq(:, 1:n), beq, csenseeq, Acpl(:, 1:n), bcpl, csensecpl, ...
+            x0(1:n), groupOf, governed, nGroups, warmTolCfg);
+        nLPs = nLPs + polLPs;
+        if ~isempty(x0Full)
+            MILPproblem.x0 = x0Full;
+        end
     end
 
-    tolParams = milpTolerances(solverTol);
-    solution  = solveCobraMILP(MILPproblem, 'timeLimit', solveTime, tolParams{:});
+    solution = solveCobraMILP(MILPproblem, 'timeLimit', solveTime, tolParams{:});
     stat      = solution.stat;
     if stat == 1 || stat == 3
         x          = solution.cont;
@@ -706,4 +739,139 @@ else
 end
 deadGlobal = cols(~isConsSub & ~coreMask(cols));
 keepMask(deadGlobal) = false;
+end
+
+% =========================================================================
+% MILP Warm-Start & Unsplit Feasibility Polisher
+% =========================================================================
+function warmCfg = localResolveMilpWarmConfig(tol, solverTol)
+FLOOR      = 1e-9;
+useDefault = false;
+if isempty(solverTol)
+    effMilpTol = FLOOR;
+    effLpTol   = FLOOR;
+elseif (ischar(solverTol) || (isstring(solverTol) && isscalar(solverTol))) && ...
+        strcmpi(solverTol, 'default')
+    milpFeas   = getCobraSolverParams('MILP', {'feasTol'}, struct());
+    effMilpTol = max(FLOOR, double(milpFeas));
+    effLpTol   = FLOOR;
+    useDefault = true;
+else
+    effMilpTol = max(FLOOR, double(solverTol));
+    effLpTol   = effMilpTol;
+end
+
+suppTol = min(0.1 * tol, max(effLpTol, 1e-5 * tol));
+warmCfg = struct();
+warmCfg.tol          = tol;
+warmCfg.lpParams     = {'feasTol', effLpTol, 'optTol', effLpTol};
+warmCfg.effSolverTol = effLpTol;
+warmCfg.effMilpTol   = effMilpTol;
+warmCfg.useDefault   = useDefault;
+warmCfg.suppTol      = suppTol;
+warmCfg.primalResTol = min(0.1 * tol, 1e2 * effLpTol);
+warmCfg.weightCap    = max(1e4, 1.0 / max(effLpTol, 1e-4 * tol));
+end
+
+% -------------------------------------------------------------------------
+function [x0Full, polLPs] = localBuildPolishedMilpStart( ...
+    MILPproblem, AeqFlux, beq, csenseeq, AcplFlux, bcpl, csensecpl, ...
+    rawFlux, groupOf, governed, nGroups, warmCfg)
+
+x0Full = [];
+polLPs = 0;
+n      = size(AeqFlux, 2);
+colLb  = MILPproblem.lb(1:n);
+colUb  = MILPproblem.ub(1:n);
+vIn    = reshape(double(rawFlux), n, 1);
+nGov   = numel(governed);
+
+forcedGov = false(nGov, 1);
+if nGov > 0
+    forcedGov = (colLb(governed) > 0) | (colUb(governed) < 0);
+end
+
+Apol     = [AeqFlux; AcplFlux];
+bpol     = [beq; bcpl];
+sensepol = [csenseeq; csensecpl];
+cuts     = [max(10.0 * warmCfg.effSolverTol, 1e-11), 0.1 * warmCfg.effSolverTol];
+
+for cIdx = 1:numel(cuts)
+    warm = false(nGroups, 1);
+    if nGov > 0
+        onGov = forcedGov | (abs(vIn(governed)) >= cuts(cIdx));
+        if any(onGov)
+            warm(groupOf(governed(onGov))) = true;
+        end
+    end
+
+    offMask = false(n, 1);
+    if nGov > 0
+        offMask(governed) = ~warm(groupOf(governed));
+    end
+
+    % Fast 0-LP check when rawFlux already satisfies MILP tolerances cleanly
+    vTry          = vIn;
+    vTry(offMask) = 0.0;
+    vTry          = min(colUb, max(colLb, vTry));
+    cand0         = [vTry; double(warm)];
+    if localMaxMilpStartViolation(MILPproblem, cand0) <= 0.5 * warmCfg.effMilpTol
+        x0Full = cand0;
+        return;
+    end
+
+    % 1-LP unsplit polish (no v^+ - v^- cancellation; off binaries fixed to 0)
+    lbPol          = colLb;
+    ubPol          = colUb;
+    lbPol(offMask) = 0.0;
+    ubPol(offMask) = 0.0;
+    LPpol = struct( ...
+        'A',      Apol, ...
+        'b',      bpol, ...
+        'csense', sensepol, ...
+        'lb',     lbPol, ...
+        'ub',     ubPol, ...
+        'c',      zeros(n, 1), ...
+        'osense', 1);
+
+    solPol = solveCobraLP(LPpol, warmCfg.lpParams{:});
+    polLPs = polLPs + 1;
+    if (solPol.stat ~= 1 || isempty(solPol.full)) && warmCfg.useDefault
+        solPol = solveCobraLP(LPpol);
+        polLPs = polLPs + 1;
+    end
+
+    if solPol.stat == 1 && ~isempty(solPol.full)
+        vPol          = solPol.full(1:n);
+        vPol(offMask) = 0.0;
+        vPol          = min(colUb, max(colLb, vPol));
+        candPol       = [vPol; double(warm)];
+        if localMaxMilpStartViolation(MILPproblem, candPol) <= 0.95 * warmCfg.effMilpTol
+            x0Full = candPol;
+        elseif strcmpi(getCobraSolver('MILP'), 'gurobi')
+            x0Full = [nan(n, 1); double(warm)];
+        else
+            x0Full = candPol;
+        end
+        return;
+    end
+end
+end
+
+% -------------------------------------------------------------------------
+function maxViol = localMaxMilpStartViolation(MILPproblem, xVec)
+bndViol = max([0.0; MILPproblem.lb - xVec; xVec - MILPproblem.ub]);
+Ax      = MILPproblem.A * xVec;
+rhs     = MILPproblem.b;
+cs      = MILPproblem.csense;
+isE     = (cs == 'E');
+isG     = (cs == 'G');
+isL     = (cs == 'L');
+eqViol  = 0.0;
+gViol   = 0.0;
+lViol   = 0.0;
+if any(isE), eqViol = full(max(abs(Ax(isE) - rhs(isE)))); end
+if any(isG), gViol  = full(max(max(0.0, rhs(isG) - Ax(isG)))); end
+if any(isL), lViol  = full(max(max(0.0, Ax(isL) - rhs(isL)))); end
+maxViol = max([bndViol, eqViol, gViol, lViol]);
 end

@@ -425,11 +425,8 @@ elseif strcmp(probType, 'minNetMILP')
         stat     = 1;
         return;
     end
-    if ~any(coreMask) && isempty(witnessFlux) && isempty(prevSols) && ~zeroFeas
-        witnessFlux = localOptionalWarmStart(model, useCoupling);
-    end
-    [reacInd, ~, stat, selected] = minNet(model, direction, milpWeights, tol, ...
-        steadystate, 'minNetMILP', solveTime, witnessFlux, prevSols, ...
+    [reacInd, ~, stat, selected, extLPs] = minNet(model, direction, milpWeights, tol, ...
+        steadystate, 'minNetMILP', solveTime, [], prevSols, ...
         indicatorGroups, inclusionCutoff, solverTol, useCoupling);
 
 elseif strcmp(probType, 'optimBiomass')
@@ -448,11 +445,8 @@ elseif strcmp(probType, 'tradeOff')
         stat     = 1;
         return;
     end
-    if ~any(coreMask) && isempty(witnessFlux) && isempty(prevSols) && ~zeroFeas
-        witnessFlux = localOptionalWarmStart(model, useCoupling);
-    end
-    [reacInd, ~, stat, selected] = tradeOff(model, direction, milpWeights, tol, ...
-        steadystate, solveTime, witnessFlux, prevSols, indicatorGroups, ...
+    [reacInd, ~, stat, selected, extLPs] = tradeOff(model, direction, milpWeights, tol, ...
+        steadystate, solveTime, [], prevSols, indicatorGroups, ...
         inclusionCutoff, solverTol, useCoupling);
 end
 end
@@ -488,22 +482,6 @@ if tf && useCoupling && isfield(model, 'C') && ~isempty(model.C)
     d  = reshape(model.d, [], 1);
     ds = reshape(model.dsense, [], 1);
     tf = ~any(((ds == 'G') & (d > 0)) | ((ds == 'L') & (d < 0)) | ((ds == 'E') & (d ~= 0)));
-end
-end
-
-% -------------------------------------------------------------------------
-function x0 = localOptionalWarmStart(model, useCoupling)
-x0 = [];
-if ~any(model.c ~= 0)
-    return;
-end
-mWarm = model;
-if ~useCoupling && isfield(mWarm, 'C')
-    mWarm = rmfield(mWarm, intersect(fieldnames(mWarm), {'C', 'd', 'dsense', 'ctrs'}));
-end
-sol = optimizeCbModel(mWarm);
-if isfield(sol, 'stat') && sol.stat == 1 && isfield(sol, 'x') && ~isempty(sol.x)
-    x0 = sol.x;
 end
 end
 
