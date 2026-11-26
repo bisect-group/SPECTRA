@@ -1,65 +1,70 @@
-context,pathway,in_old_fig5d,in_clean_2B,evidence_tier,k_fsr,K_model,fea_fold_enrich,fea_fdr,fsr_rxns_in_mcmc,mcmc_fdr05_concordant_n,mcmc_fdr05_concordant_pct,mcmc_d33_concordant_n,mcmc_d33_concordant_pct,fsr_rxns_median_abs_delta,pw_all_mcmc_fdr05_pct,pw_all_d33_pct,pw_vs_bg_mw_p
-Brain,Eicosanoid metabolism,True,True,Pathway-level,18,75,9.93,3.884041338274487e-12,18,2,11.1,1,5.6,0.113,71.6,9.0,0.9997293363541258
-Brain,Heme synthesis,True,True,Pathway-level,9,12,31.04,9.165303690791603e-12,9,1,11.1,1,11.1,0.127,100.0,40.0,0.10360935221062328
-Brain,Starch and sucrose metabolism,True,True,Pathway-level,7,38,7.62,0.00027410585152379957,7,6,85.7,6,85.7,0.874,94.7,44.7,0.1206178553408287
-Brain,Sphingolipid metabolism,True,True,Pathway-level,9,93,4.0,0.0029578556789881397,9,9,100.0,9,100.0,0.925,95.4,41.4,0.001921114987753153
-Brain,Fructose and mannose metabolism,True,True,Pathway-level,3,16,7.76,0.039060977905244286,3,2,66.7,0,0.0,0.074,100.0,37.5,0.1468401178964419
-Kidney,Chondroitin sulfate degradation,True,True,Component-level,21,44,17.17,3.681098182794484e-20,21,21,100.0,21,100.0,0.817,100.0,100.0,4.057826017733697e-10
-Kidney,Fatty acid synthesis,True,True,Pathway-level,30,210,5.14,1.4768438539355188e-12,30,30,100.0,13,43.3,0.32,100.0,16.3,0.7414233594746125
-Kidney,Glyoxylate and dicarboxylate metabolism,True,True,Component-level,3,9,11.99,0.02148315579203751,3,3,100.0,3,100.0,0.594,100.0,77.8,0.002286668019792895
-Kidney,N-glycan degradation,True,True,Pathway-level,3,12,8.99,0.039672060769804826,3,3,100.0,3,100.0,0.998,100.0,80.0,0.001333988874692538
-Kidney,Glycosphingolipid metabolism,True,True,Pathway-level,7,77,3.27,0.044102576817272185,7,7,100.0,2,28.6,0.174,100.0,19.4,0.9297269480868432
-Kidney,Hyaluronan metabolism,True,True,Pathway-level,2,5,14.39,0.04973036408304372,2,2,100.0,0,0.0,0.284,100.0,0.0,0.23870163742013917
-Liver,Keratan sulfate degradation,True,True,Component-level,31,35,19.39,1.403482953698509e-36,31,31,100.0,31,100.0,1.0,100.0,97.1,6.638156548643239e-21
-Liver,Heme synthesis,True,True,Pathway-level,10,15,14.59,1.9079450049369744e-09,10,2,20.0,0,0.0,0.499,100.0,70.0,0.038010760431731516
-Liver,Fatty acid synthesis,True,True,Pathway-level,36,258,3.05,1.8983559476752473e-08,36,36,100.0,21,58.3,0.345,92.1,19.4,0.9231579256166171
-Liver,Chondroitin sulfate degradation,True,True,Component-level,5,5,21.89,2.1737447071457177e-06,5,0,0.0,0,0.0,0.126,100.0,40.0,0.11792153271082195
-Liver,Glycosphingolipid metabolism,True,True,Component-level,10,80,2.74,0.029656530426739724,10,9,90.0,3,30.0,0.129,69.3,12.0,0.9999989042640389
-Liver,Starch and sucrose metabolism,True,True,Pathway-level,6,35,3.75,0.034372862662339417,6,6,100.0,1,16.7,0.076,82.9,11.4,0.925720273314851
-Lung,Heme synthesis,True,True,Pathway-level,10,13,23.11,1.2841774303105991e-11,10,0,0.0,0,0.0,0.325,100.0,54.5,0.005104248724374755
-Lung,Lysine metabolism,True,True,Component-level,7,20,10.51,3.0195497127450565e-05,7,7,100.0,0,0.0,0.024,95.0,20.0,0.9834861129379565
-Lung,Fatty acid oxidation,True,True,Pathway-level,50,781,1.92,3.0195497127450565e-05,50,45,90.0,29,58.0,0.389,89.8,24.9,0.9953322656556459
-Lung,Citric acid cycle,True,True,Pathway-level,5,13,11.55,0.0003635459938409684,5,3,60.0,3,60.0,0.784,100.0,90.0,0.00036602455446902213
-Lung,Glycosphingolipid metabolism,True,True,Pathway-level,10,72,4.17,0.0008597079374710756,10,4,40.0,2,20.0,0.168,100.0,19.7,0.32093527932587057
-Lung,Heme degradation,True,True,Pathway-level,2,2,30.04,0.006620254063700724,2,0,0.0,0,0.0,0.217,100.0,0.0,0.3555085148152496
-Eye,Keratan sulfate synthesis,True,True,Component-level,59,59,12.5,7.296305343049892e-65,59,0,0.0,0,0.0,0.289,100.0,0.0,0.4356420057337974
-Eye,Chondroitin synthesis,True,True,Component-level,43,44,12.21,1.866866661023557e-45,43,0,0.0,0,0.0,0.165,100.0,20.9,0.9415869525484489
-Eye,Blood group synthesis,True,True,Uncertain,37,37,12.5,1.6781457067422565e-40,37,0,0.0,0,0.0,0.179,100.0,16.2,0.4811298216125373
-Eye,Keratan sulfate degradation,True,True,Component-level,32,35,11.42,2.591649105742409e-31,32,31,96.9,31,96.9,1.0,100.0,97.1,5.0693061110481556e-21
-Eye,Sphingolipid metabolism,True,True,Pathway-level,43,97,5.54,2.0695479183010842e-21,43,9,20.9,4,9.3,0.178,100.0,38.8,0.07339122412136785
-Eye,Eicosanoid metabolism,True,True,Component-level,32,86,4.65,2.090991210073708e-13,32,28,87.5,15,46.9,0.307,98.6,37.8,0.4834231892880635
-Eye,Heme synthesis,True,True,Pathway-level,7,10,8.75,1.3062077640822882e-05,7,0,0.0,0,0.0,0.376,100.0,87.5,0.012121116077203736
-Eye,Chondroitin sulfate degradation,True,True,Component-level,9,21,5.36,9.150668283403018e-05,9,9,100.0,6,66.7,0.602,100.0,66.7,9.729189708209599e-05
-Eye,Fatty acid oxidation,True,False,Pathway-level,88,839,1.31,0.020724402193259894,88,70,79.5,43,48.9,0.326,95.5,38.9,0.9935941506303924
-Eye,Hyaluronan metabolism,True,True,Pathway-level,2,2,12.5,0.030814239460748682,2,2,100.0,0,0.0,0.027,100.0,0.0,0.9781936573836998
-Eye,O-glycan metabolism,True,True,Component-level,4,11,4.54,0.03754600370090508,4,0,0.0,0,0.0,0.157,100.0,28.6,0.6439863574935428
-Pancreas,Eicosanoid metabolism,True,True,Pathway-level,27,96,8.15,2.0245607602685818e-16,27,14,51.9,2,7.4,0.046,81.2,23.8,0.3171926274196093
-Pancreas,Fatty acid oxidation,True,True,Pathway-level,79,890,2.57,5.918253411535486e-15,79,78,98.7,28,35.4,0.128,90.7,23.1,6.3749900222808635e-09
-Pancreas,Fatty acid synthesis,True,True,Pathway-level,34,246,4.01,2.7848601384239582e-11,34,34,100.0,30,88.2,0.398,92.8,18.8,0.3235158035735918
-Pancreas,Glycosphingolipid metabolism,True,True,Pathway-level,8,70,3.31,0.02275794626825886,8,5,62.5,5,62.5,0.448,93.9,28.8,0.00010594934070631502
-Prostate,Fatty acid synthesis,True,True,Pathway-level,31,217,5.84,2.8920990646654486e-14,31,31,100.0,13,41.9,0.315,95.3,12.1,0.6356108939112128
-Prostate,Glycosphingolipid metabolism,True,True,Pathway-level,8,82,3.99,0.015176943699999371,8,7,87.5,5,62.5,0.595,98.6,32.9,2.905835395602501e-05
-Prostate,Glyoxylate and dicarboxylate metabolism,True,True,Pathway-level,3,11,11.15,0.01862863295914692,3,3,100.0,0,0.0,0.042,100.0,40.0,0.23790740200786842
-Prostate,Starch and sucrose metabolism,True,True,Component-level,5,39,5.24,0.01862863295914692,5,2,40.0,2,40.0,0.029,74.3,14.3,0.9998215829457046
-Prostate,Drug metabolism,True,True,Component-level,17,326,2.13,0.01862863295914692,17,8,47.1,1,5.9,0.114,92.8,9.0,0.9999780605433263
-Breast,Eicosanoid metabolism,True,True,Pathway-level,28,95,8.92,3.7600978816199e-18,28,27,96.4,15,53.6,0.441,97.6,27.7,0.0007884014736583143
-Breast,Purine synthesis,True,True,Pathway-level,8,9,26.91,2.1122553000054547e-10,8,0,0.0,0,0.0,0.072,100.0,11.1,0.7759035596130328
-Breast,Bile acid synthesis,True,True,Pathway-level,22,154,4.32,6.632797101186144e-08,22,9,40.9,2,9.1,0.052,91.2,27.0,0.0003018392954230881
-Breast,Fatty acid oxidation,True,True,Pathway-level,54,837,1.95,6.919339669296545e-06,54,50,92.6,42,77.8,0.559,91.6,23.2,0.0005371542348652973
-Breast,O-glycan metabolism,True,True,Pathway-level,5,14,10.81,0.0004504454209152199,5,3,60.0,3,60.0,0.471,100.0,45.5,0.0747670817788092
-Breast,Vitamin D metabolism,True,True,Pathway-level,2,3,20.18,0.017318979868542653,2,0,0.0,0,0.0,0.322,100.0,33.3,0.4113710046050142
-Breast,Citric acid cycle,True,True,Pathway-level,3,12,7.57,0.029837051777983903,3,2,66.7,2,66.7,0.975,100.0,70.0,0.0004572721460369043
-Ovary,Eicosanoid metabolism,True,True,Pathway-level,29,97,11.02,1.6815984559435757e-21,29,27,93.1,0,0.0,0.206,75.3,10.1,0.8106562344043258
-Ovary,Fatty acid oxidation,True,True,Pathway-level,60,786,2.81,5.275867802122534e-13,60,59,98.3,39,65.0,0.354,94.3,20.4,6.476697953387897e-11
-Ovary,Steroid metabolism,True,True,Pathway-level,8,60,4.91,0.002219885803729787,8,7,87.5,4,50.0,0.458,96.3,27.8,0.014274537475404223
-Ovary,Glutathione metabolism,True,True,Pathway-level,4,14,10.53,0.0036203978142974815,4,2,50.0,2,50.0,0.524,100.0,61.5,0.0002583446864879843
-Biliary Tract,Keratan sulfate synthesis,True,True,Uncertain,59,59,13.06,2.83426053503455e-66,59,22,37.3,0,0.0,0.027,100.0,0.0,0.9999983913188333
-Biliary Tract,Keratan sulfate degradation,True,True,Uncertain,57,60,12.41,8.348365299482778e-60,57,57,100.0,56,98.2,0.914,100.0,93.3,5.107874156248905e-27
-Biliary Tract,Chondroitin synthesis,True,True,Uncertain,45,45,13.06,1.552666284122926e-50,45,37,82.2,0,0.0,0.157,100.0,0.0,0.9760655589934301
-Biliary Tract,Blood group synthesis,True,True,Component-level,39,39,13.06,9.208111049698404e-44,39,39,100.0,3,7.7,0.165,100.0,7.7,0.10629506255146576
-Biliary Tract,Heparan sulfate degradation,True,True,Pathway-level,27,27,13.06,3.738400144700777e-30,27,27,100.0,0,0.0,0.181,100.0,0.0,0.12560385881265496
-Biliary Tract,Sphingolipid metabolism,True,True,Pathway-level,43,108,5.2,3.8999957522976644e-20,43,42,97.7,6,14.0,0.143,99.0,27.8,0.007599174813037576
-Biliary Tract,Heme synthesis,True,True,Pathway-level,14,18,10.16,3.170406062106303e-12,14,3,21.4,0,0.0,0.285,100.0,43.8,0.016085549486207194
-Biliary Tract,O-glycan metabolism,True,True,Component-level,10,12,10.88,2.192859678441307e-09,10,10,100.0,0,0.0,0.148,100.0,0.0,0.5910139819977733
-Biliary Tract,Chondroitin sulfate degradation,True,True,Uncertain,9,25,4.7,0.0002716319444310328,9,9,100.0,6,66.7,0.47,100.0,88.0,1.6781487328112178e-08
-Biliary Tract,Starch and sucrose metabolism,True,True,Uncertain,8,33,3.17,0.01220739415549066,8,8,100.0,2,25.0,0.173,100.0,25.0,0.014722676595997436
+context,pathway,in_clean_2B,in_curated_98,evidence_tier,k_fsr,K_model,fea_fdr,mcmc_fdr05_concordant_pct,mcmc_d33_concordant_pct,fsr_rxns_median_abs_delta
+Brain,Keratan sulfate degradation,True,True,Component-level,73,76,1.5762096677956836e-79,100.0,34.2,0.249
+Brain,Fatty acid oxidation,True,True,Pathway-level,167,822,5.090542164061119e-38,96.4,81.4,0.401
+Brain,Chondroitin sulfate degradation,True,True,Component-level,33,44,4.797006785392419e-28,100.0,63.6,0.361
+Brain,Eicosanoid metabolism,True,True,Pathway-level,29,75,9.395198822141248e-14,96.6,89.7,0.34
+Brain,Fatty acid synthesis,True,True,Pathway-level,50,244,6.59884584436472e-11,96.0,74.0,0.478
+Brain,Histidine metabolism,True,True,Component-level,7,10,5.511780493027924e-06,100.0,100.0,0.961
+Brain,Hyaluronan metabolism,True,True,Pathway-level,5,5,9.429950650826075e-06,100.0,100.0,0.83
+Brain,Tryptophan metabolism,True,True,Pathway-level,11,34,6.938489935160542e-05,100.0,100.0,0.989
+Kidney,Tryptophan metabolism,True,True,Pathway-level,13,34,4.633346713038993e-12,100.0,100.0,0.98
+Kidney,Heme synthesis,True,True,Pathway-level,9,12,4.633346713038993e-12,100.0,77.8,0.765
+Kidney,Nucleotide interconversion,True,True,Pathway-level,8,95,0.011860568276642109,87.5,87.5,0.937
+Kidney,N-glycan degradation,True,True,Pathway-level,3,12,0.01546618226555882,100.0,100.0,1.0
+Kidney,Hyaluronan metabolism,True,True,Pathway-level,2,5,0.029145644677564697,0.0,0.0,0.912
+Liver,Fatty acid oxidation,True,True,Pathway-level,204,673,6.06998785779715e-84,86.8,62.7,0.422
+Liver,Aminoacyl-tRNA biosynthesis,True,True,Pathway-level,13,20,1.3307957392869937e-09,100.0,92.3,0.526
+Liver,Purine synthesis,True,True,Pathway-level,9,10,6.203944879587897e-09,100.0,100.0,0.506
+Liver,Protein degradation,True,True,Component-level,4,5,0.0009723343530559968,100.0,100.0,0.478
+Liver,Protein assembly,True,True,Component-level,3,5,0.02217158941258319,100.0,100.0,0.472
+Liver,Hyaluronan metabolism,True,True,Pathway-level,2,2,0.030171525944751674,0.0,0.0,1.0
+Liver,Citric acid cycle,True,True,Pathway-level,4,11,0.030171525944751674,75.0,75.0,0.667
+Lung,Keratan sulfate degradation,True,True,Component-level,71,75,2.731341798415438e-61,0.0,0.0,0.22
+Lung,Fatty acid oxidation,True,True,Pathway-level,227,773,6.70205548858573e-48,91.2,71.8,0.49
+Lung,Chondroitin sulfate degradation,True,True,Component-level,33,44,1.809993756419282e-21,0.0,0.0,0.277
+Lung,Fatty acid synthesis,True,True,Pathway-level,63,213,3.1477647795834448e-12,100.0,84.1,0.472
+Lung,Eicosanoid metabolism,True,True,Pathway-level,28,82,4.5326672464151317e-07,96.4,53.6,0.52
+Lung,Hyaluronan metabolism,True,True,Pathway-level,3,3,0.011167142130994347,0.0,0.0,0.685
+Eye,Keratan sulfate degradation,True,True,Component-level,31,35,3.807608062208717e-31,100.0,100.0,1.0
+Eye,Fatty acid oxidation,True,True,Pathway-level,114,840,6.27288010035101e-13,65.8,51.8,0.432
+Eye,Chondroitin synthesis,True,True,Component-level,21,43,6.674620720604242e-13,19.0,0.0,0.229
+Eye,Blood group synthesis,True,True,Uncertain,18,37,3.6975627661493105e-11,0.0,0.0,0.184
+Eye,Sphingolipid metabolism,True,True,Pathway-level,28,93,5.2205340831404156e-11,57.1,10.7,0.103
+Eye,Keratan sulfate synthesis,True,True,Component-level,22,59,7.069513013678793e-11,0.0,0.0,0.004
+Eye,Lysine metabolism,True,True,Pathway-level,8,21,0.0002385491369025236,100.0,100.0,0.657
+Eye,Fatty acid synthesis,True,True,Pathway-level,27,215,0.006747046597763883,96.3,92.6,0.582
+Eye,Histidine metabolism,True,True,Pathway-level,4,10,0.015201037406046431,100.0,100.0,0.747
+Eye,Chondroitin sulfate degradation,True,True,Component-level,5,21,0.04988718437469433,100.0,100.0,0.914
+Pancreas,Fatty acid oxidation,True,True,Pathway-level,47,878,8.517412895256623e-05,76.6,63.8,0.597
+Pancreas,N-glycan degradation,True,True,Pathway-level,4,11,0.0027051291323226196,100.0,100.0,0.683
+Pancreas,Eicosanoid metabolism,True,True,Pathway-level,9,92,0.009797743763960193,100.0,100.0,0.63
+Pancreas,Glyoxylate and dicarboxylate metabolism,True,True,Component-level,3,12,0.026300906876816826,100.0,0.0,0.121
+Prostate,Keratan sulfate degradation,True,True,Uncertain,74,76,2.7723023952073643e-95,100.0,31.1,0.133
+Prostate,Chondroitin sulfate degradation,True,True,Component-level,33,44,2.5211156194482083e-33,69.7,6.1,0.173
+Prostate,Purine synthesis,True,True,Pathway-level,9,11,1.4088469148581836e-09,100.0,100.0,0.613
+Prostate,Histidine metabolism,True,True,Component-level,8,10,1.7884429459199723e-08,100.0,100.0,0.967
+Prostate,Glycerophospholipid metabolism,True,True,Pathway-level,32,229,7.790019391366535e-07,81.2,75.0,0.394
+Prostate,Hyaluronan metabolism,True,True,Pathway-level,5,5,2.5174311626725103e-06,100.0,100.0,0.43
+Prostate,Pyrimidine synthesis,True,True,Pathway-level,6,19,0.0016452686297259878,100.0,100.0,0.552
+Prostate,Glycosphingolipid metabolism,True,True,Pathway-level,12,84,0.005224396660411688,100.0,66.7,0.441
+Breast,Fatty acid oxidation,True,True,Pathway-level,184,827,2.7404681919438748e-71,90.2,14.7,0.181
+Breast,Eicosanoid metabolism,True,True,Pathway-level,26,89,1.785481536498376e-11,100.0,3.8,0.159
+Breast,O-glycan metabolism,True,True,Pathway-level,5,14,0.00990336717225663,60.0,60.0,0.697
+Ovary,Keratan sulfate degradation,True,True,Component-level,75,75,1.7771774240586397e-100,96.0,0.0,0.083
+Ovary,Chondroitin sulfate degradation,True,True,Component-level,44,44,4.6692637934514126e-58,75.0,0.0,0.168
+Ovary,Heparan sulfate degradation,True,True,Pathway-level,27,27,2.510500747879443e-35,100.0,0.0,0.123
+Ovary,Chondroitin synthesis,True,True,Component-level,16,45,1.4093089291249388e-09,100.0,0.0,0.123
+Ovary,Hyaluronan metabolism,True,True,Pathway-level,5,5,2.0537383154869517e-06,100.0,0.0,0.192
+Ovary,Sphingolipid metabolism,True,True,Pathway-level,13,82,0.0008610274075439012,76.9,53.8,0.419
+Ovary,Glyoxylate and dicarboxylate metabolism,True,True,Component-level,3,10,0.04965430425655684,100.0,100.0,0.407
+Biliary Tract,Blood group synthesis,True,True,Component-level,39,39,4.374302078135407e-42,100.0,94.9,0.555
+Biliary Tract,Chondroitin synthesis,True,True,Uncertain,40,45,1.3793157969157455e-37,55.0,0.0,0.155
+Biliary Tract,Heparan sulfate degradation,True,True,Pathway-level,27,27,3.5487707743529673e-29,100.0,0.0,0.169
+Biliary Tract,Chondroitin sulfate degradation,True,True,Uncertain,17,25,1.804200051235685e-12,52.9,35.3,0.496
+Biliary Tract,Sphingolipid metabolism,True,True,Pathway-level,32,105,1.867733226151245e-10,78.1,31.2,0.137
+Biliary Tract,Eicosanoid metabolism,True,True,Pathway-level,28,87,7.008297566249091e-10,46.4,46.4,0.132
+Biliary Tract,Keratan sulfate synthesis,True,True,Uncertain,22,59,2.6874019309737146e-09,100.0,0.0,0.221
+Biliary Tract,Histidine metabolism,True,True,Component-level,9,10,8.979320816924714e-09,100.0,100.0,0.988
+Biliary Tract,Hyaluronan metabolism,True,True,Component-level,5,5,1.8528831587340987e-05,100.0,0.0,0.083
+Biliary Tract,O-glycan metabolism,True,True,Component-level,7,12,6.016090716682702e-05,71.4,0.0,0.218
+Biliary Tract,"Valine, leucine, and isoleucine metabolism",True,True,Component-level,7,30,0.0334477348211468,100.0,100.0,0.999

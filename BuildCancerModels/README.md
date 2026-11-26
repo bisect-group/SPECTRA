@@ -15,12 +15,14 @@
 - `GiniReactionImportance.m`: Computes `LocalGini` core reaction sets (`RxnImp >= 1`) and non-core penalty weights (`1 - RxnImp`).
 - `BuildDepMapModels.m`: Reconstructs context-specific models across all 1,479 CCLE cell lines using weighted Fastcore (`fastCoreWeighted`), `swiftcore`, and `spectraME` (`minNetLP`).
 - `run_fastCoreWeighted_array.m`: Parallel chunked SLURM runner for `fastCoreWeighted` across the 1,479 CCLE cell lines.
+- `run_sp_new_array.m` & `run_timing_1479_array.m`: Parallel chunked SLURM runners for `spectraME` (`minNetLP`) model reconstruction and back-to-back 3-method extraction runtime benchmarking across the 1,479 CCLE cell lines.
+- `run_fva20_array.m`: Parallel SLURM runner for unconstrained Flux Variability Analysis (`optPercentage = 0`) across the 20 paired cancer and non-cancerous `SPECTRA_ME` models.
 
 ### 2. `coverage_core/` — 135 Cancer Hallmark Recovery, Model Size `|N|`, & Specificity Metrics
 - `cancerrxnscoverage.m` & `core_coverage_find.m`: Computes the proportion of 135 curated cancer hallmark reactions recovered in each extracted CSM (`coverage_spectra.mat`, `coverage_fastcore.mat` / `coverage_fastcore_weighted.mat`, `coverage_swiftcore.mat`).
-- `ccle_1479_size_and_hallmark_metrics.csv`: Per-cell-line core size `|C|`, extracted model size `|N|`, non-core additions `|N \ C|`, hallmark recall, non-core hypergeometric fold-enrichment & Fisher odds ratios, negative-control pathway fold-enrichment, and per-model runtimes across all 1,479 CCLE lines.
-- `ccle_1479_wilcoxon_stats.csv`: Exact paired Wilcoxon signed-rank statistics across all 1,479 CCLE CSMs.
-- `analyze_ccle_1479_and_fig5c.py`: Generates Figure 5c (`Visualisations/cancer_pareto_speed_coverage.pdf`).
+- `ccle_1479_size_and_hallmark_metrics.csv`: Per-cell-line core size `|C|`, extracted model size `|N|`, non-core additions `|N \ C|`, hallmark recall, non-core hypergeometric fold-enrichment & Fisher odds ratios, negative-control pathway fold-enrichment, and back-to-back per-model runtimes across all 1,479 CCLE lines.
+- `ccle_1479_wilcoxon_stats.csv`: Unpaired two-sided Mann-Whitney U and paired Wilcoxon signed-rank statistics across all 1,479 CCLE CSMs.
+- `analyze_ccle_1479_and_fig5c.py`: Generates the 3-panel Figure 5c (`Visualisations/cancer_pareto_speed_coverage.pdf`: hallmark recovery, extracted model size, and extraction runtime).
 
 ### 3. `fva/` — Flux Variability Analysis Bounds (20 Paired Cancer vs. Normal CSMs)
 - Contains `minFlux` and `maxFlux` FVA bounds (`ACH-*.xlsx`) for the 10 cancer and 10 tissue-matched non-cancerous `SPECTRA_ME` models listed in `flux_results/models_name.m`.
@@ -33,7 +35,7 @@
 - `step4_rxn_fsr_mcmc_concordance.csv` & `step4_new_fsr_pathways_with_mcmc_corroboration.csv`: Reaction- and pathway-level concordance between FSR/FEA and RHMC MCMC flux sampling.
 - `run_fsr_fea_mcmc_corroboration.py`: Renders Figure 5d (`Visualisations/bubble_fea_final.pdf`) with concentric MCMC corroboration rings.
 
-### 5. `flux_sampling/` — 80-Chain RHMC MCMC Uniform Flux Sampling (20 Paired CSMs)
-- `scripts/`: RHMC uniform flux-sampling pipeline (polytope rounding, 80 independent chains per model, Gelman-Rubin `R-hat` & ESS diagnostics, and Mann-Whitney U / Cliff's delta tests on `|v|`).
+### 5. `flux_sampling/` — RHMC MCMC Uniform Flux Sampling (20 Paired CSMs)
+- `scripts/`: RHMC uniform flux-sampling pipeline (`run_rhmc_new_chain.m`; polytope rounding followed by four independent chains per model [80 chains across the 20 models], Gelman-Rubin `R-hat` & ESS diagnostics, and Mann-Whitney U / Cliff's delta tests on `|v|`).
 - `results/sampling_per_reaction.csv` & `sampling_summary.csv`: Reaction-level posterior flux statistics (`median |v|`, `mean |v|`, `R-hat`, `ESS`, `Cliff's delta`, BH `FDR`) across all 10 cancer-vs-normal pairs.
 - `raw_chains/`: Local archive of raw thinned MCMC chain draws (git-ignored due to size).
